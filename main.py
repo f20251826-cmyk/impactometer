@@ -48,6 +48,7 @@ from layer1_transcription import transcribe_audio_file, transcribe_live
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
 from layer4_placeholder import judge_agent
+from score_tracker import record_score
 
 
 # ===========================================================================
@@ -110,6 +111,8 @@ async def run_pipeline(
     demo: bool = False,
     save_output: bool = True,
     user_context: dict = None,
+    startup_id: str = "unknown",
+    session_number: int = 1,
 ) -> dict:
     """
     Run the full AI Call Analysis Pipeline end to end, syncing with Supabase and Google Docs.
@@ -341,6 +344,21 @@ async def run_pipeline(
 
         print(f"\n  💾  Full backup output saved to: {output_path}")
 
+        # -------------------------------------------------------------------
+        # Score tracking — record this run in data/scores.json
+        # -------------------------------------------------------------------
+        try:
+            entry = record_score(startup_id, session_number, output_path)
+            delta_sign = "+" if entry["delta_from_baseline"] >= 0 else ""
+            print(f"\n  ✓  Score recorded")
+            print(f"     Startup: {startup_id}")
+            print(f"     Session: {entry['session']}")
+            print(f"     Score: {entry['score']}")
+            print(f"     Delta from baseline: {delta_sign}{entry['delta_from_baseline']}")
+            print(f"     Maturity: {entry['maturity']}")
+        except Exception as e:
+            print(f"  ⚠️  Score tracking failed: {e}")
+
     # -----------------------------------------------------------------------
     # Final summary
     # -----------------------------------------------------------------------
@@ -428,6 +446,21 @@ Examples:
         help="Additional custom context or focus notes for the summary",
     )
 
+    # Score tracker identifiers
+    parser.add_argument(
+        "--startup",
+        type=str,
+        default="unknown",
+        help="Startup identifier for score tracking (default: 'unknown')",
+    )
+
+    parser.add_argument(
+        "--session",
+        type=int,
+        default=1,
+        help="Session number for score tracking (default: 1)",
+    )
+
     return parser.parse_args()
 
 
@@ -464,6 +497,8 @@ if __name__ == "__main__":
                 demo=args.demo,
                 save_output=not args.no_save,
                 user_context=user_context,
+                startup_id=args.startup,
+                session_number=args.session,
             )
         )
     except KeyboardInterrupt:

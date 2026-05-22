@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Impactometer — Startup Maturity Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --good: #22c55e;
+      --bad: #ef4444;
+      --neutral: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    p.subtitle { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button, select {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    select { min-width: 220px; }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    section h2 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    #chart-wrap { height: 420px; position: relative; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .stat {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 14px;
+    }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+    .empty-card { color: var(--muted); font-style: italic; padding: 12px 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--panel-border); }
+    th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    .delta-pos { color: var(--good); }
+    .delta-neg { color: var(--bad); }
+    .delta-zero { color: var(--neutral); }
+
+    .banner {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fcd34d;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      display: none;
+    }
+    .banner.visible { display: block; }
+  </style>
+</head>
+<body>
+  <h1>Impactometer</h1>
+  <p class="subtitle">Startup maturity progression across pipeline sessions</p>
+
+  <div class="controls">
+    <button id="btn-reload">Reload from scores.json</button>
+    <button id="btn-sample">Load Sample Data</button>
+  </div>
+
+  <div id="banner" class="banner"></div>
+
+  <section>
+    <h2>Progress Chart</h2>
+    <div id="chart-wrap"><canvas id="progress-chart"></canvas></div>
+  </section>
+
+  <section>
+    <h2>Startup Stats</h2>
+    <select id="startup-select"><option value="">— Select a startup —</option></select>
+    <div id="stats-card" class="empty-card">Select a startup to see stats.</div>
+  </section>
+
+  <section>
+    <h2>Session History</h2>
+    <div id="table-wrap" class="empty-card">Select a startup to see session history.</div>
+  </section>
+
+  <script>
+    // -------------------------------------------------------------------
+    // DATA LOADING NOTE
+    // -------------------------------------------------------------------
+    // This dashboard loads ../data/scores.json via fetch(). Browsers block
+    // fetch() on the file:// protocol due to CORS, so opening index.html
+    // directly will fail. To view real data:
+    //
+    //   1) From the repo root:  python3 -m http.server 8000
+    //   2) Open:  http://localhost:8000/dashboard/index.html
+    //
+    // Or click "Load Sample Data" to populate the dashboard with mock
+    // data without needing a server or the real pipeline.
+    // -------------------------------------------------------------------
+
+    const MATURITY_BANDS = [
+      { min: 0,   max: 4,   color: "rgba(239, 68, 68, 0.12)",  label: "Pre-GTM"     },
+      { min: 4,   max: 6.5, color: "rgba(245, 158, 11, 0.12)", label: "Hypothesis"  },
+      { min: 6.5, max: 8.5, color: "rgba(34, 197, 94, 0.12)",  label: "Validation"  },
+      { min: 8.5, max: 10,  color: "rgba(59, 130, 246, 0.12)", label: "Scaling"     },
+    ];
+
+    function maturityForScore(score) {
+      if (score < 4) return "Pre-GTM";
+      if (score < 6.5) return "Hypothesis Stage";
+      if (score < 8.5) return "Validation Stage";
+      return "Scaling Stage";
+    }
+
+    const PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee"];
+
+    // Application state
+    let state = {
+      data: { startups: {}, cohort_averages: [] },
+      selected: null,
+      chart: null,
+    };
+
+    // -------------------------------------------------------------------
+    // Chart.js plugin: paint maturity bands behind the data
+    // -------------------------------------------------------------------
+    const bandsPlugin = {
+      id: "maturityBands",
+      beforeDatasetsDraw(chart) {
+        const { ctx, chartArea, scales: { y } } = chart;
+        if (!chartArea) return;
+        const { left, right } = chartArea;
+
+        ctx.save();
+        MATURITY_BANDS.forEach(b => {
+          const yTop = y.getPixelForValue(b.max);
+          const yBot = y.getPixelForValue(b.min);
+          ctx.fillStyle = b.color;
+          ctx.fillRect(left, yTop, right - left, yBot - yTop);
+
+          ctx.fillStyle = "rgba(226, 232, 240, 0.5)";
+          ctx.font = "11px sans-serif";
+          ctx.fillText(b.label, left + 8, yTop + 14);
+        });
+        ctx.restore();
+      },
+    };
+
+    // -------------------------------------------------------------------
+    // Build Chart.js datasets from current state.data
+    // -------------------------------------------------------------------
+    function buildDatasets() {
+      const startupEntries = Object.entries(state.data.startups || {});
+      const datasets = [];
+
+      startupEntries.forEach(([id, info], idx) => {
+        const color = PALETTE[idx % PALETTE.length];
+        const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
+        const isSelected = state.selected === id;
+
+        datasets.push({
+          label: id,
+          data: sessions.map(s => ({ x: s.session, y: s.score })),
+          borderColor: color,
+          backgroundColor: color,
+          borderWidth: isSelected ? 3 : 1.5,
+          tension: 0.25,
+          pointRadius: isSelected ? 5 : 3,
+          pointHoverRadius: 6,
+          _sessionMeta: sessions, // attached for tooltip lookup
+        });
+      });
+
+      const cohort = state.data.cohort_averages || [];
+      if (cohort.length) {
+        datasets.push({
+          label: "Cohort average",
+          data: cohort.map(c => ({ x: c.session, y: c.avg_score })),
+          borderColor: "rgba(148, 163, 184, 0.9)",
+          backgroundColor: "rgba(148, 163, 184, 0.9)",
+          borderWidth: 2,
+          borderDash: [6, 4],
+          tension: 0.25,
+          pointRadius: 3,
+          _isCohort: true,
+        });
+      }
+      return datasets;
+    }
+
+    function renderChart() {
+      const canvas = document.getElementById("progress-chart");
+      const datasets = buildDatasets();
+
+      if (state.chart) {
+        state.chart.data.datasets = datasets;
+        state.chart.update();
+        return;
+      }
+
+      state.chart = new Chart(canvas, {
+        type: "line",
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "nearest", intersect: false },
+          scales: {
+            x: {
+              type: "linear",
+              min: 1,
+              max: 6,
+              ticks: { stepSize: 1, color: "#94a3b8" },
+              title: { display: true, text: "Session", color: "#94a3b8" },
+              grid: { color: "rgba(148, 163, 184, 0.1)" },
+            },
+            y: {
+              min: 0,
+              max: 10,
+              ticks: { stepSize: 1, color: "#94a3b8" },
+              title: { display: true, text: "Doc Quality Score", color: "#94a3b8" },
+              grid: { color: "rgba(148, 163, 184, 0.1)" },
+            },
+          },
+          plugins: {
+            legend: { labels: { color: "#e2e8f0" } },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const it = items[0];
+                  return `Session ${it.parsed.x}`;
+                },
+                label: (ctx) => {
+                  const ds = ctx.dataset;
+                  if (ds._isCohort) {
+                    return `Cohort average: ${ctx.parsed.y.toFixed(2)}`;
+                  }
+                  const sessionMeta = (ds._sessionMeta || []).find(s => s.session === ctx.parsed.x);
+                  const lines = [`${ds.label}: ${ctx.parsed.y.toFixed(2)}`];
+                  if (sessionMeta) {
+                    const d = sessionMeta.delta_from_baseline;
+                    const sign = d > 0 ? "+" : "";
+                    lines.push(`Δ from baseline: ${sign}${d.toFixed(2)}`);
+                    lines.push(`Maturity: ${sessionMeta.maturity}`);
+                  }
+                  return lines;
+                },
+              },
+            },
+          },
+        },
+        plugins: [bandsPlugin],
+      });
+    }
+
+    // -------------------------------------------------------------------
+    // Selector + stats + table
+    // -------------------------------------------------------------------
+    function renderSelector() {
+      const select = document.getElementById("startup-select");
+      const ids = Object.keys(state.data.startups || {});
+      const prev = state.selected;
+
+      select.innerHTML = '<option value="">— Select a startup —</option>' +
+        ids.map(id => `<option value="${id}">${id}</option>`).join("");
+
+      if (prev && ids.includes(prev)) {
+        select.value = prev;
+      } else {
+        state.selected = null;
+      }
+    }
+
+    function renderStats() {
+      const card = document.getElementById("stats-card");
+      if (!state.selected) {
+        card.className = "empty-card";
+        card.textContent = "Select a startup to see stats.";
+        return;
+      }
+      const info = state.data.startups[state.selected];
+      const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
+      if (!sessions.length) {
+        card.className = "empty-card";
+        card.textContent = "No sessions recorded yet.";
+        return;
+      }
+      const baseline = info.baseline_score;
+      const latest = sessions[sessions.length - 1];
+      const totalDelta = latest.score - baseline;
+      const sign = totalDelta > 0 ? "+" : "";
+
+      card.className = "";
+      card.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat"><div class="label">Startup</div><div class="value">${state.selected}</div></div>
+          <div class="stat"><div class="label">Baseline</div><div class="value">${baseline.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Current</div><div class="value">${latest.score.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Δ from baseline</div><div class="value">${sign}${totalDelta.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Maturity</div><div class="value">${latest.maturity}</div></div>
+          <div class="stat"><div class="label">Sessions</div><div class="value">${sessions.length}</div></div>
+        </div>
+      `;
+    }
+
+    function renderTable() {
+      const wrap = document.getElementById("table-wrap");
+      if (!state.selected) {
+        wrap.className = "empty-card";
+        wrap.textContent = "Select a startup to see session history.";
+        return;
+      }
+      const info = state.data.startups[state.selected];
+      const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
+      if (!sessions.length) {
+        wrap.className = "empty-card";
+        wrap.textContent = "No sessions yet.";
+        return;
+      }
+
+      const rows = sessions.map(s => {
+        const dp = s.delta_from_previous;
+        const cls = dp > 0 ? "delta-pos" : dp < 0 ? "delta-neg" : "delta-zero";
+        const sign = dp > 0 ? "+" : "";
+        const dbSign = s.delta_from_baseline > 0 ? "+" : "";
+        return `<tr>
+          <td>${s.session}</td>
+          <td>${s.date}</td>
+          <td>${s.score.toFixed(2)}</td>
+          <td class="${cls}">${sign}${dp.toFixed(2)}</td>
+          <td>${dbSign}${s.delta_from_baseline.toFixed(2)}</td>
+          <td>${s.maturity}</td>
+        </tr>`;
+      }).join("");
+
+      wrap.className = "";
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Session</th><th>Date</th><th>Score</th>
+            <th>Δ Previous</th><th>Δ Baseline</th><th>Maturity</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderAll() {
+      renderSelector();
+      renderChart();
+      renderStats();
+      renderTable();
+    }
+
+    // -------------------------------------------------------------------
+    // Banner helper
+    // -------------------------------------------------------------------
+    function showBanner(message) {
+      const b = document.getElementById("banner");
+      b.textContent = message;
+      b.classList.add("visible");
+    }
+    function clearBanner() {
+      document.getElementById("banner").classList.remove("visible");
+    }
+
+    // -------------------------------------------------------------------
+    // Data loading
+    // -------------------------------------------------------------------
+    async function loadScoresFile() {
+      clearBanner();
+      try {
+        const res = await fetch("../data/scores.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        state.data = {
+          startups: json.startups || {},
+          cohort_averages: json.cohort_averages || [],
+        };
+        if (!Object.keys(state.data.startups).length) {
+          showBanner("scores.json loaded but contains no startups yet. Run the pipeline or click Load Sample Data.");
+        }
+        renderAll();
+      } catch (err) {
+        showBanner(
+          "Could not load ../data/scores.json (" + err.message + "). " +
+          "If you opened this file directly, run `python3 -m http.server` from the repo root and visit http://localhost:8000/dashboard/index.html — or click Load Sample Data."
+        );
+      }
+    }
+
+    function loadSampleData() {
+      clearBanner();
+      const today = new Date().toISOString().slice(0, 10);
+      const buildSessions = (scores) => {
+        let baseline = scores[0];
+        return scores.map((score, i) => {
+          const prev = i === 0 ? score : scores[i - 1];
+          return {
+            session: i + 1,
+            date: today,
+            score: score,
+            delta_from_baseline: +(score - baseline).toFixed(2),
+            delta_from_previous: i === 0 ? 0 : +(score - prev).toFixed(2),
+            maturity: maturityForScore(score),
+            run_file: `sample_${i + 1}.json`,
+          };
+        });
+      };
+
+      const startups = {
+        startup_a: { baseline_score: 3.5, sessions: buildSessions([3.5, 5.1, 6.8, 7.9]) },
+        startup_b: { baseline_score: 4.8, sessions: buildSessions([4.8, 5.0, 5.4, 5.7]) },
+        startup_c: { baseline_score: 4.2, sessions: buildSessions([4.2, 6.0, 7.5, 8.9]) },
+      };
+
+      const bySession = {};
+      Object.values(startups).forEach(s => {
+        s.sessions.forEach(e => {
+          (bySession[e.session] ||= { scores: [], deltas: [] }).scores.push(e.score);
+          bySession[e.session].deltas.push(e.delta_from_baseline);
+        });
+      });
+      const cohort_averages = Object.keys(bySession).map(Number).sort((a, b) => a - b).map(session => {
+        const b = bySession[session];
+        return {
+          session,
+          avg_score: +(b.scores.reduce((a, c) => a + c, 0) / b.scores.length).toFixed(2),
+          avg_delta: +(b.deltas.reduce((a, c) => a + c, 0) / b.deltas.length).toFixed(2),
+        };
+      });
+
+      state.data = { startups, cohort_averages };
+      state.selected = "startup_a";
+      renderAll();
+      document.getElementById("startup-select").value = "startup_a";
+    }
+
+    // -------------------------------------------------------------------
+    // Wire up controls
+    // -------------------------------------------------------------------
+    document.getElementById("btn-reload").addEventListener("click", loadScoresFile);
+    document.getElementById("btn-sample").addEventListener("click", loadSampleData);
+    document.getElementById("startup-select").addEventListener("change", (e) => {
+      state.selected = e.target.value || null;
+      renderChart();
+      renderStats();
+      renderTable();
+    });
+
+    // Initial load
+    loadScoresFile();
+  </script>
+</body>
+</html>
