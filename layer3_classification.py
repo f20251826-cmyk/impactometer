@@ -7,17 +7,7 @@ This module takes the FULL TRANSCRIPT (from Layer 1) and the TALKING POINTS
 SUMMARY (from Layer 2) as inputs, and uses Gemini 2.5 Flash to classify the call
 and generate a numerical score (0.0 to 10.0) representing document quality.
 
-Output: A structured JSON object with:
-  - call_type          (str)  : e.g. "Sales call", "Support call", "Internal meeting"
-  - topic              (str)  : Main topic discussed
-  - sentiment          (str)  : "positive", "neutral", or "negative"
-  - summary            (str)  : 2-3 sentence summary of the call
-  - participants_count (int)  : Number of distinct speakers
-  - language_detected  (str)  : Language of the conversation (e.g. "English")
-  - doc_quality_score  (float): A rating from 0.0 to 10.0 of the document quality
-
-The grading criteria for doc_quality_score can be dynamically customized
-using parameters passed in the prompt.
+Output: A structured JSON object with BITS Pilani Conquest 2026 specs.
 =============================================================================
 """
 
@@ -30,99 +20,70 @@ load_dotenv()
 
 import google.generativeai as genai
 
-# These are the call types the model knows about. Add/remove as needed.
-CALL_TYPE_HINTS = [
-    "Sales call",
-    "Support / Help desk call",
-    "Internal team meeting",
-    "Client onboarding",
-    "Interview",
-    "Performance review",
-    "Project standup / status update",
-    "Negotiation",
-    "Consultation",
-    "Training / Walkthrough",
-    "Escalation",
-    "Follow-up",
-    "Cold call / Outreach",
-    "Other",
-]
+EVALUATOR_SYSTEM_PROMPT = """You are a session evaluator for Conquest, BITS Pilani's startup accelerator program.
 
-# Fields the model must return. Modify this list to add new fields.
-REQUIRED_OUTPUT_FIELDS = [
-    "call_type",
-    "topic",
-    "sentiment",
-    "summary",
-    "participants_count",
-    "language_detected",
-    "doc_quality_score",
-]
+YOUR INPUT:
+You will receive the full context JSON from Layer 2.
 
-CLASSIFICATION_SYSTEM_PROMPT = f"""You are a Call Classification & Quality Evaluator Agent.
-Given a full call transcript and the talking points summary from Layer 2, you must classify the call and score the quality of the transcript document.
+YOUR TASK:
+Using the structured data from Layer 2, evaluate the session across four rubrics. Do not invent details; base your scores only on what was explicitly extracted.
 
-## YOUR TASK:
+Task 1 — Assess Mentor Engagement
+Evaluate how effectively the mentor drove the session based on the nature of the extracted discussion.
+- score: 0.0 to 10.0
+- observation: One sentence citing specific advice given or questions asked.
 
-Analyse BOTH inputs to determine:
+Task 2 — Assess Founder Preparedness
+Evaluate how well the founder understood their metrics, responded to feedback, and defended their assumptions.
+- score: 0.0 to 10.0
+- observation: One sentence citing their command of metrics from the pitch or their responses in the discussion.
 
-1. **call_type** — What kind of call this is. Pick the best match from:
-   {json.dumps(CALL_TYPE_HINTS, indent=2)}
-   If none of these fit, use "Other" and add a clarifier (e.g. "Other — Legal review").
+Task 3 — Calculate Overall Progress Metric
+Calculate a strict average of the two scores above.
+- score: 0.0 to 10.0
 
-2. **topic** — A concise phrase describing the main topic (e.g. "Deployment pipeline reliability", "Q3 sales targets").
+Task 4 — Generate Next Steps / To-Dos
+Identify 1-3 concrete next steps for the founder based on the discussion points. Only list actions explicitly discussed or strongly implied as necessary by the mentor's feedback.
 
-3. **sentiment** — Overall sentiment of the call. Must be exactly one of:
-   - "positive" — generally constructive, upbeat, or collaborative
-   - "neutral" — balanced, informational, no strong emotion
-   - "negative" — frustrated, conflicted, or adversarial
+OUTPUT — Context JSON:
+You are the third layer in a pipeline. Inherit the Layer 2 JSON and append your evaluation under a new "layer3_evaluation" key. Do not modify or remove any data from Layer 2.
 
-4. **summary** — A 2-3 sentence summary of what happened on the call. Be specific, mention key decisions or outcomes.
-
-5. **participants_count** — How many distinct speakers are in the transcript (integer).
-
-6. **language_detected** — The primary language spoken (e.g. "English", "Spanish", "Hindi").
-
-7. **doc_quality_score** — A numerical rating from 0.0 to 10.0 assessing the "quality of the document".
-   Assess the rating based on the following structural criteria:
-   - Completeness: Does the transcript record complete thoughts rather than cut-offs?
-   - Diarization Turn Structure: Are speaker turns organized logically and attributable?
-   - Coherence: Is the conversation easy to comprehend?
-   *Note: Detailed mathematical parameters for this score will be customized later. For now, grade the quality strictly between 0.0 (unusable) and 10.0 (pristine/perfect).*
-
-## OUTPUT FORMAT:
-
-Return a single valid JSON object with EXACTLY these keys: {json.dumps(REQUIRED_OUTPUT_FIELDS)}.
-Do NOT wrap in markdown code fences. Do NOT add extra keys unless instructed.
-
-Example:
-{{
-  "call_type": "Internal team meeting",
-  "topic": "Deployment pipeline reliability",
-  "sentiment": "neutral",
-  "summary": "The team discussed recurring failures in the deployment pipeline. They identified the staging environment mismatch as the root cause and assigned an action item to set up a dedicated staging cluster.",
-  "participants_count": 2,
-  "language_detected": "English",
-  "doc_quality_score": 8.5
-}}
+json
+{
+  ... (All Layer 2 fields unchanged),
+  "layer3_evaluation": {
+    "mentor_engagement": {
+      "score": <float>,
+      "observation": ""
+    },
+    "founder_preparedness": {
+      "score": <float>,
+      "observation": ""
+    },
+    "overall_progress_metric": <float>,
+    "next_steps_for_founder": [
+      ""
+    ]
+  }
+}
 """
 
 # ===========================================================================
 # Main Function — Classification Agent
 # ===========================================================================
 
-def classify_call(transcript_data: dict, breakdown_data: dict) -> dict:
+def classify_call(transcript_data: dict, breakdown_data: dict, user_context: dict = None) -> dict:
     """
     Classify a call and evaluate document quality using the transcript and
     talking points summary.
 
     Args:
         transcript_data: Output dict from Layer 1 (must have "transcript" key)
-        breakdown_data:  Output dict from Layer 2 (must have "summary" key)
+        breakdown_data:  Output dict from Layer 2 (must have "talking_points" key)
+        user_context:    User configuration parameters (optional)
 
     Returns:
-        dict with keys: call_type, topic, sentiment, summary,
-        participants_count, language_detected, doc_quality_score
+        dict: Conquest 2026 Layer 3 Schema JSON.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -130,37 +91,30 @@ def classify_call(transcript_data: dict, breakdown_data: dict) -> dict:
             "GEMINI_API_KEY not found. Add it to your .env file."
         )
 
-    transcript_text = transcript_data.get("transcript", "")
-    summary_text = breakdown_data.get("summary", "")
-
-    if not transcript_text.strip():
-        print("  ⚠️  Empty transcript received — returning default classification.")
-        return _default_classification()
+    if not breakdown_data or breakdown_data.get("layer2_metadata", {}).get("identification_confidence") == "low":
+        if not breakdown_data.get("discussion") and not breakdown_data.get("pitch_metrics"):
+            print("  ⚠️  No substantive data received — returning default evaluation.")
+            return _default_classification(breakdown_data)
 
     try:
         # Configure the Gemini API client
         genai.configure(api_key=api_key)
 
-        # Initialise Gemini 2.5 Highlight with classification prompt
+        # Initialise Gemini 2.5 Flash
         model = genai.GenerativeModel(
             model_name="gemini-2.5-flash",
-            system_instruction=CLASSIFICATION_SYSTEM_PROMPT,
+            system_instruction=EVALUATOR_SYSTEM_PROMPT,
         )
 
         # Build user prompt
-        user_prompt = f"""Classify and grade the quality of the following call.
+        user_prompt = f"""Evaluate this session according to your instructions.
 
---- FULL TRANSCRIPT ---
-{transcript_text}
---- END TRANSCRIPT ---
+YOUR INPUT:
+{json.dumps(breakdown_data, indent=2, ensure_ascii=False)}
 
---- TALKING POINTS SUMMARY (Layer 2) ---
-{summary_text}
---- END SUMMARY ---
+Return the full merged JSON including your layer3_evaluation."""
 
-Return your classification and doc quality score as a JSON object."""
-
-        print("  🏷️  Classifying call and evaluating document quality...")
+        print("  🏷️  Evaluating session...")
         response = model.generate_content(user_prompt)
 
         # Parse JSON response
@@ -175,39 +129,28 @@ Return your classification and doc quality score as a JSON object."""
 
         classification = json.loads(raw_text)
 
-        # Validate that all required fields exist
+        # Validate that all required structures exist
         if not isinstance(classification, dict):
             raise ValueError("Gemini did not return a JSON object.")
 
-        for field in REQUIRED_OUTPUT_FIELDS:
-            if field not in classification:
-                print(f"  ⚠️  Missing field '{field}' — using default value.")
-                classification[field] = _default_value(field)
+        if "layer3_evaluation" not in classification:
+            classification["layer3_evaluation"] = {
+                "mentor_engagement": {"score": 0.0, "observation": "Evaluation missing"},
+                "founder_preparedness": {"score": 0.0, "observation": "Evaluation missing"},
+                "overall_progress_metric": 0.0,
+                "next_steps_for_founder": []
+            }
+        else:
+            # Ensure float scores
+            l3 = classification["layer3_evaluation"]
+            if "mentor_engagement" in l3:
+                l3["mentor_engagement"]["score"] = float(l3["mentor_engagement"].get("score", 0.0))
+            if "founder_preparedness" in l3:
+                l3["founder_preparedness"]["score"] = float(l3["founder_preparedness"].get("score", 0.0))
+            l3["overall_progress_metric"] = float(l3.get("overall_progress_metric", 0.0))
 
-        # Normalise sentiment
-        if "sentiment" in classification:
-            classification["sentiment"] = classification["sentiment"].lower()
-            if classification["sentiment"] not in ("positive", "neutral", "negative"):
-                classification["sentiment"] = "neutral"
-
-        # Ensure participants_count is integer
-        if "participants_count" in classification:
-            try:
-                classification["participants_count"] = int(classification["participants_count"])
-            except (ValueError, TypeError):
-                speakers = transcript_data.get("speakers", [])
-                unique_speakers = set(s.get("speaker", "") for s in speakers)
-                classification["participants_count"] = len(unique_speakers) or 2
-
-        # Ensure doc_quality_score is float
-        if "doc_quality_score" in classification:
-            try:
-                classification["doc_quality_score"] = float(classification["doc_quality_score"])
-            except (ValueError, TypeError):
-                classification["doc_quality_score"] = 7.0  # Fallback median grade
-
-        print(f"  ✅  Call classified as: {classification.get('call_type', 'Unknown')}")
-        print(f"      Sentiment: {classification.get('sentiment', '?')}  |  Doc Quality Score: {classification.get('doc_quality_score', '0.0')}/10.0")
+        prog_metric = classification["layer3_evaluation"].get("overall_progress_metric", 0.0)
+        print(f"  ✅  Call evaluated successfully. Overall Progress Metric: {prog_metric}/10.0")
 
         return classification
 
@@ -224,31 +167,23 @@ Return your classification and doc quality score as a JSON object."""
 # Default / Fallback Helpers
 # ===========================================================================
 
-def _default_classification() -> dict:
-    """Return a default classification when the transcript is empty."""
-    return {
-        "call_type": "Unknown",
-        "topic": "Unknown",
-        "sentiment": "neutral",
-        "summary": "No transcript available for classification.",
-        "participants_count": 0,
-        "language_detected": "Unknown",
-        "doc_quality_score": 0.0,
+def _default_classification(breakdown_data: dict) -> dict:
+    """Return a default evaluation when the input is empty."""
+    # Start with a copy of layer 2 output if present
+    res = dict(breakdown_data) if breakdown_data else {}
+    res["layer3_evaluation"] = {
+        "mentor_engagement": {
+            "score": 0.0,
+            "observation": "No data available."
+        },
+        "founder_preparedness": {
+            "score": 0.0,
+            "observation": "No data available."
+        },
+        "overall_progress_metric": 0.0,
+        "next_steps_for_founder": []
     }
-
-
-def _default_value(field: str):
-    """Return a sensible default for a missing classification field."""
-    defaults = {
-        "call_type": "Unknown",
-        "topic": "Unknown",
-        "sentiment": "neutral",
-        "summary": "Classification incomplete.",
-        "participants_count": 0,
-        "language_detected": "Unknown",
-        "doc_quality_score": 5.0,
-    }
-    return defaults.get(field, "Unknown")
+    return res
 
 
 # ===========================================================================
@@ -257,16 +192,28 @@ def _default_value(field: str):
 
 def print_classification(classification: dict) -> None:
     """Print the classification result in a readable format."""
+    eval_data = classification.get("layer3_evaluation", {})
+
     print(f"\n{'='*60}")
-    print("  CALL CLASSIFICATION & EVALUATION")
+    print("  CONQUEST 2026 - EVALUATION")
     print(f"{'='*60}")
-    print(f"  📞  Call Type    : {classification.get('call_type', '?')}")
-    print(f"  📌  Topic        : {classification.get('topic', '?')}")
-    print(f"  😊  Sentiment    : {classification.get('sentiment', '?')}")
-    print(f"  👥  Participants : {classification.get('participants_count', '?')}")
-    print(f"  🌐  Language     : {classification.get('language_detected', '?')}")
-    print(f"  ⭐️  Doc Quality  : {classification.get('doc_quality_score', '?')}/10.0")
-    print(f"  📝  Summary      : {classification.get('summary', '?')}")
+    
+    mentor = eval_data.get("mentor_engagement", {})
+    print(f"  🧑‍🏫 Mentor Engagement Score: {mentor.get('score', 0.0)}/10.0")
+    print(f"     Observation: {mentor.get('observation', '')}")
+    
+    founder = eval_data.get("founder_preparedness", {})
+    print(f"  🧑‍💼 Founder Preparedness Score: {founder.get('score', 0.0)}/10.0")
+    print(f"     Observation: {founder.get('observation', '')}")
+    
+    print(f"\n  📈 Overall Progress Metric: {eval_data.get('overall_progress_metric', 0.0)}/10.0")
+    
+    next_steps = eval_data.get("next_steps_for_founder", [])
+    if next_steps:
+        print(f"\n  🎯 Next Steps for Founder:")
+        for step in next_steps:
+            print(f"    • {step}")
+            
     print(f"{'='*60}\n")
 
 
@@ -278,17 +225,12 @@ if __name__ == "__main__":
     # Test payloads
     sample_transcript = {
         "transcript": (
-            "[00:00] Speaker 0: Hey, good morning! Thanks for joining the call.\n"
-            "[00:05] Speaker 1: Morning! Happy to be here. Let's dive in.\n"
-            "[00:12] Speaker 0: So the main issue is our deployment pipeline breaks every third release.\n"
-            "[00:22] Speaker 1: That's concerning. Have you checked the CI config?\n"
-            "[00:28] Speaker 0: Yes. The problem is in the staging environment — it doesn't mirror production.\n"
-            "[00:38] Speaker 1: I think we should set up a dedicated staging cluster. I can take that as an action item.\n"
-            "[00:48] Speaker 0: Perfect. Let's also add automated smoke tests after each deploy.\n"
-            "[00:55] Speaker 1: Agreed. I'll draft a proposal by Friday.\n"
-            "[01:02] Speaker 0: Great, thanks. Anything else?\n"
-            "[01:05] Speaker 1: That's it from my side. Talk soon!\n"
-            "[01:08] Speaker 0: Bye!"
+            "[00:00] Speaker 0: Hey, good morning! Thanks for joining the call. I'm your GTM mentor.\n"
+            "[00:05] Speaker 1: Morning! Happy to be here. We are doing cold calling but conversion is very low.\n"
+            "[00:12] Speaker 0: Let's figure out your ICP. What's the profile of your best customer?\n"
+            "[00:22] Speaker 1: They are engineering leaders in India. I'll make sure to refine this ICP by Thursday.\n"
+            "[00:48] Speaker 0: Excellent. Let's touch base again next week.\n"
+            "[01:02] Speaker 1: Sounds perfect. Talk soon!"
         ),
         "speakers": [
             {"speaker": "Speaker 0"}, {"speaker": "Speaker 1"},
@@ -296,19 +238,22 @@ if __name__ == "__main__":
     }
 
     sample_breakdown = {
-        "summary": (
-            "The meeting centered around reliability issues in the team's deployment pipeline, "
-            "specifically regarding staging environment mismatches with production. Speaker 1 "
-            "committed to setting up a dedicated staging cluster, and both agreed to write a "
-            "proposal to add automated smoke tests by Friday."
-        ),
-        "talking_points": [
-            "Deployment pipeline breaks every third release.",
-            "Staging environment does not match production config.",
-            "Action item: Speaker 1 to configure staging cluster.",
-            "Decision made: Set up automated smoke testing post-deploy."
-        ]
+        "discussion": {
+            "GTM": [
+                {"speaker": "founder", "statement": "We are doing cold calling but conversion is very low."},
+                {"speaker": "mentor", "statement": "Let's figure out your ICP. What's the profile of your best customer?"}
+            ],
+            "market_structure_and_timing": None,
+            "MVP": None,
+            "unit_economics_and_capital_efficiency": None,
+            "team_structure": None
+        },
+        "layer2_metadata": {
+            "speaker_identification": {"mentor": "Speaker 0", "founder": "Speaker 1"},
+            "identification_confidence": "high",
+            "active_parameters": ["GTM"]
+        }
     }
 
-    result = classify_call(sample_transcript, sample_breakdown)
+    result = classify_call({}, sample_breakdown)
     print_classification(result)

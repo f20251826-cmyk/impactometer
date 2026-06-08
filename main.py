@@ -19,6 +19,15 @@ are easy to extend, inspect, and serialise.
 
 import os
 import sys
+
+# Reconfigure stdout/stderr to support Unicode (emojis) on Windows console
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # For older Python versions that don't support reconfigure
+
 import json
 import asyncio
 import argparse
@@ -47,7 +56,6 @@ from db_helpers import (
 from layer1_transcription import transcribe_audio_file, transcribe_live
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
-from layer4_placeholder import judge_agent
 from score_tracker import record_score
 
 
@@ -130,7 +138,7 @@ async def run_pipeline(
     """
     pipeline_start = datetime.now()
     print("\n" + "=" * 60)
-    print("  🚀  AI CALL ANALYSIS PIPELINE (SUPABASE & GDOCS READY)")
+    print("  🚀  AI CALL ANALYSIS PIPELINE (CONQUEST 2026 READY)")
     print("=" * 60)
 
     # -----------------------------------------------------------------------
@@ -175,6 +183,18 @@ async def run_pipeline(
     if total_lines > 10:
         print(f"    ... ({total_lines - 10} more lines)")
 
+    # Calculate Layer 1 metadata
+    speakers_list = transcript_data.get("speakers", [])
+    unique_speakers = set(utt.get("speaker") for utt in speakers_list if utt.get("speaker"))
+    tot_duration = max([utt.get("end", 0.0) for utt in speakers_list]) if speakers_list else 0.0
+    confidences = [utt.get("confidence", 0.0) for utt in speakers_list]
+    
+    layer1_metadata = {
+        "speaker_count": len(unique_speakers) or 2,
+        "duration": tot_duration,
+        "confidence_scores": confidences
+    }
+
     # 1B. Storage: Save raw transcript to Google Doc & push to Supabase
     print("\n  💾  Syncing Layer 1 to Google Docs & Supabase...")
     gdoc_l1_title = f"Transcript - {call_title}"
@@ -194,7 +214,7 @@ async def run_pipeline(
     )
 
     # -----------------------------------------------------------------------
-    # LAYER 2 — Talking Points Summarizer (UPDATED)
+    # LAYER 2 — Talking Points Summarizer (UPDATED FOR CONQUEST 2026)
     # -----------------------------------------------------------------------
     print(f"\n{'─'*60}")
     print("  LAYER 2 / 4 — Talking Points Summarizer (Gemini Flash)")
@@ -203,10 +223,11 @@ async def run_pipeline(
     # Build the aggregated context payload
     layer2_payload = {
         "transcript": transcript_data["transcript"],
-        "user_context": user_context or {
-            "summary_length": "comprehensive (3-4 paragraphs)",
-            "custom_notes": "None"
-        }
+        "user_context": {
+            "summary_length": user_context.get("summary_length", "standard") if user_context else "standard",
+            "focus_areas": user_context.get("focus_areas", []) if user_context else []
+        },
+        "layer1_metadata": layer1_metadata
     }
 
     try:
@@ -215,61 +236,90 @@ async def run_pipeline(
     except Exception as e:
         print(f"  ❌  Layer 2 failed: {e}")
         print("  ⚠️  Continuing pipeline with empty breakdown...")
-        breakdown_data = {"summary": "Summarizer failed.", "talking_points": [], "word_count": 0}
+        breakdown_data = {
+            "session_summary": "Summarizer failed.",
+            "talking_points": [],
+            "action_items": [],
+            "low_confidence_flags": [f"Layer 2 failure: {e}"],
+            "layer2_metadata": {
+                "talking_points_count": 0,
+                "summary_length_used": "standard",
+                "focus_areas_covered": [],
+                "focus_areas_missing": []
+            }
+        }
 
     # 2B. Storage: Save talking point summary to Google Doc & push to Supabase
     print("  💾  Syncing Layer 2 to Google Docs & Supabase...")
     gdoc_l2_title = f"Summary - {call_title}"
-    gdoc_l2_bullets = "\n".join([f"• {p}" for p in breakdown_data.get('talking_points', [])])
+    
+    bullets = []
+    for tp in breakdown_data.get("talking_points", []):
+        bullets.append(
+            f"• [{tp.get('topic', 'Topic')}] (Attribution: {tp.get('speaker_attribution', '?')})\n"
+            f"  Summary: {tp.get('summary', '')}\n"
+            f"  Quote: \"{tp.get('verbatim_anchor', '')}\"\n"
+            f"  Outcome: {tp.get('outcome', '')}"
+        )
+    gdoc_l2_bullets = "\n".join(bullets)
+    
+    actions = []
+    for act in breakdown_data.get("action_items", []):
+        actions.append(
+            f"✓ {act.get('action', '')} (Owner: {act.get('owner', '?')})\n"
+            f"  Anchor: \"{act.get('verbatim_anchor', '')}\""
+        )
+    gdoc_l2_actions = "\n".join(actions)
+
     gdoc_l2_content = (
-        f"TALKING POINTS SUMMARY\n"
+        f"TALKING POINTS SUMMARY & ACTIONS (CONQUEST 2026)\n"
         f"Generated: {datetime.now().isoformat()}\n"
         f"Call ID: {call_id}\n"
         f"Sizing parameter: {layer2_payload['user_context'].get('summary_length')}\n"
         f"{'='*40}\n\n"
         f"### EXECUTIVE SUMMARY\n"
-        f"{breakdown_data['summary']}\n\n"
+        f"{breakdown_data.get('session_summary', '')}\n\n"
         f"### KEY DISCUSSION POINTS\n"
-        f"{gdoc_l2_bullets}"
+        f"{gdoc_l2_bullets}\n\n"
+        f"### ACTION ITEMS\n"
+        f"{gdoc_l2_actions}"
     )
+    
     l2_doc_id = create_gdoc(gdoc_l2_title, gdoc_l2_content)
     update_layer2_data(
         call_id=call_id,
         doc_id=l2_doc_id,
-        summary=breakdown_data["summary"]
+        summary=breakdown_data.get("session_summary", "")
     )
 
     # -----------------------------------------------------------------------
-    # LAYER 3 — Call Classification & Quality Score (UPDATED)
+    # LAYER 3 — Call Classification & Quality Score (UPDATED FOR CONQUEST 2026)
     # -----------------------------------------------------------------------
     print(f"\n{'─'*60}")
     print("  LAYER 3 / 4 — Call Classification & Quality (Gemini Flash)")
     print(f"{'─'*60}")
 
     try:
-        classification_data = classify_call(transcript_data, breakdown_data)
+        classification_data = classify_call(transcript_data, breakdown_data, user_context=user_context)
         print_classification(classification_data)
     except Exception as e:
         print(f"  ❌  Layer 3 failed: {e}")
         print("  ⚠️  Continuing pipeline with default classification...")
         classification_data = {
-            "call_type": "Unknown",
-            "topic": "Unknown",
-            "sentiment": "neutral",
-            "summary": "Classification failed.",
-            "participants_count": 0,
-            "language_detected": "Unknown",
+            "classification": {
+                "primary_topic": "Unknown",
+                "secondary_topics": [],
+                "sentiment": "collaborative",
+                "sentiment_evidence": "Classification failed.",
+                "founder_receptiveness": "medium",
+                "founder_receptiveness_evidence": "Classification failed.",
+                "session_type": "mixed",
+                "participant_count": 0
+            },
             "doc_quality_score": 0.0,
+            "doc_quality_metadata": {},
+            "layer3_metadata": {}
         }
-
-    # -----------------------------------------------------------------------
-    # LAYER 4 — Judge Agent (Placeholder)
-    # -----------------------------------------------------------------------
-    print(f"\n{'─'*60}")
-    print("  LAYER 4 / 4 — Judge Agent (Placeholder)")
-    print(f"{'─'*60}")
-
-    judgement_data = judge_agent(transcript_data, breakdown_data, classification_data)
 
     # -----------------------------------------------------------------------
     # Finalize consolidated run & metadata
@@ -298,27 +348,29 @@ async def run_pipeline(
         "layer3_classification": {
             **classification_data,
             "google_doc_id": None, # Will be set below
-        },
-        "layer4_judgement": judgement_data,
+        }
     }
 
     # 3B. Storage: Save final evaluation to Google Doc & push to Supabase
     print("  💾  Syncing Layer 3 & final metadata to Google Docs & Supabase...")
     gdoc_l3_title = f"Evaluation - {call_title}"
+    cls_block = classification_data.get("classification", {})
     gdoc_l3_content = (
-        f"CALL EVALUATION & METADATA\n"
+        f"CALL EVALUATION & METADATA (CONQUEST 2026)\n"
         f"Generated: {datetime.now().isoformat()}\n"
         f"Call ID: {call_id}\n"
         f"{'='*40}\n\n"
-        f"Call Type: {classification_data.get('call_type')}\n"
-        f"Main Topic: {classification_data.get('topic')}\n"
-        f"Sentiment: {classification_data.get('sentiment')}\n"
-        f"Language Detected: {classification_data.get('language_detected')}\n"
-        f"Participant Count: {classification_data.get('participants_count')}\n"
-        f"Document Quality Score: {classification_data.get('doc_quality_score')}/10.0\n\n"
-        f"### Executive Summary:\n"
-        f"{classification_data.get('summary')}"
+        f"Session Type: {cls_block.get('session_type')}\n"
+        f"Main Topic: {cls_block.get('primary_topic')}\n"
+        f"Sentiment: {cls_block.get('sentiment')}\n"
+        f"Sentiment Evidence: {cls_block.get('sentiment_evidence')}\n"
+        f"Founder Receptiveness: {cls_block.get('founder_receptiveness')} ({cls_block.get('founder_receptiveness_evidence')})\n"
+        f"Participant Count: {cls_block.get('participant_count')}\n"
+        f"Document Quality Score: {classification_data.get('doc_quality_score', 0.0)}/10.0\n\n"
+        f"### Score Metadata:\n"
+        f"{json.dumps(classification_data.get('doc_quality_metadata', {}), indent=2)}"
     )
+    
     l3_doc_id = create_gdoc(gdoc_l3_title, gdoc_l3_content)
     final_output["layer3_classification"]["google_doc_id"] = l3_doc_id
 
@@ -368,9 +420,8 @@ async def run_pipeline(
     print(f"  ⏱️   Total time     : {elapsed:.1f}s")
     print(f"  🗣️   Utterances     : {len(transcript_data.get('speakers', []))}")
     print(f"  📊  Doc Quality    : {classification_data.get('doc_quality_score', 0.0)}/10.0")
-    print(f"  📞  Call type       : {classification_data.get('call_type', '?')}")
-    print(f"  😊  Sentiment       : {classification_data.get('sentiment', '?')}")
-    print(f"  ⚖️   Judge status   : {judgement_data.get('status', '?')}")
+    print(f"  📞  Session type   : {cls_block.get('session_type', '?')}")
+    print(f"  😊  Sentiment       : {cls_block.get('sentiment', '?')}")
     print(f"{'='*60}\n")
 
     return final_output
@@ -390,7 +441,7 @@ Examples:
   python main.py recording.wav                          # Transcribe an audio file
   python main.py --live                                 # Live mic transcription (30s)
   python main.py --demo                                 # Run with built-in demo transcript
-  python main.py --demo --summary-length "1 paragraph"  # Custom size summary run
+  python main.py --demo --summary-length "brief"        # Custom size summary run
         """,
     )
 
@@ -435,8 +486,16 @@ Examples:
     parser.add_argument(
         "--summary-length",
         type=str,
-        default="comprehensive (3-4 paragraphs)",
-        help="Target length/size parameter for the Layer 2 summary",
+        default="standard",
+        choices=["brief", "standard", "detailed"],
+        help="Target length/size parameter for the Layer 2 summary (brief, standard, detailed)",
+    )
+
+    parser.add_argument(
+        "--focus-areas",
+        type=str,
+        default="",
+        help="Comma-separated list of focus topics for Layer 2 (e.g. 'GTM,ICP')",
     )
     
     parser.add_argument(
@@ -484,6 +543,7 @@ if __name__ == "__main__":
     # Assemble user context payload for Layer 2 dynamic sizing
     user_context = {
         "summary_length": args.summary_length,
+        "focus_areas": [f.strip() for f in args.focus_areas.split(",") if f.strip()] if args.focus_areas else [],
         "custom_notes": args.custom_notes
     }
 
