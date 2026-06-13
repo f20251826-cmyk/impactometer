@@ -20,3 +20,6 @@ venv/
 output/
 *.json
 !package.json
+
+# macOS
+.DS_Store

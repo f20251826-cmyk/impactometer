@@ -1,502 +1,1243 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Impactometer — Startup Maturity Dashboard</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conquest Impact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --orange: #FB723D;
+    --orange-hover: #FC8450;
+    --cream: #FFFBF9;
+    --dark: #111213;
+    --surface: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(251,114,61,0.5);
+    --text: #FFFBF9;
+    --text-dim: rgba(255,251,249,0.6);
+    --text-muted: rgba(255,251,249,0.35);
+    --score-0: #ef4444; --score-1: #f97316; --score-2: #eab308; --score-3: #84cc16; --score-4: #22c55e;
+    --rebuttal: #ef4444; --warning: #f59e0b; --recommendation: #FB723D; --flag: #8a8a8a;
+  }
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  * { box-sizing: border-box; }
+  html { background: var(--dark); }
+  body {
+    margin: 0;
+    position: relative;
+    min-height: 100vh;
+    background: #111213;
+    color: var(--text);
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
 
-  <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --panel-border: #334155;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #60a5fa;
-      --good: #22c55e;
-      --bad: #ef4444;
-      --neutral: #94a3b8;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 24px;
-    }
-    h1 { margin: 0 0 4px; font-size: 22px; }
-    p.subtitle { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  /* fixed fullscreen Aura video background (orange via hue-rotate) */
+  .bg-fixed { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .bg-fixed video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; filter: hue-rotate(185deg) saturate(1.3) brightness(0.7); }
+  .bg-fixed .bg-overlay { position: absolute; inset: 0; background: rgba(17,18,19,0.45); }
 
-    .controls {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    button, select {
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid var(--panel-border);
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    button:hover { border-color: var(--accent); }
-    select { min-width: 220px; }
+  /* vertical guide lines */
+  .guide { position: fixed; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.07); z-index: 5; pointer-events: none; }
+  .guide.l { left: calc(50% - 36rem); }
+  .guide.r { left: calc(50% + 36rem); }
+  @media (max-width: 1200px) { .guide { display: none; } }
 
-    section {
-      background: var(--panel);
-      border: 1px solid var(--panel-border);
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 24px;
-    }
-    section h2 {
-      margin: 0 0 16px;
-      font-size: 16px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+  /* ---------- liquid glass ---------- */
+  .glass {
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.08);
+    position: relative; overflow: hidden;
+  }
+  .glass::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+    background: linear-gradient(160deg,
+      rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 25%,
+      rgba(255,255,255,0) 50%, rgba(255,255,255,0) 75%, rgba(255,255,255,0.08) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
+  }
 
-    #chart-wrap { height: 420px; position: relative; }
+  /* ---------- typography ---------- */
+  .eyebrow { font-weight: 600; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .eyebrow.orange { color: var(--orange); }
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px;
-      margin-top: 12px;
-    }
-    .stat {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      padding: 14px;
-    }
-    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .stat .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
-    .empty-card { color: var(--muted); font-style: italic; padding: 12px 0; }
+  blockquote.q {
+    font-family: "Crimson Text", Georgia, serif; font-style: italic;
+    font-size: 16px; line-height: 1.7; color: var(--cream);
+    margin: 12px 0 0; padding: 14px 20px;
+    border-left: 3px solid rgba(251,114,61,0.7);
+    background: rgba(251,114,61,0.06);
+    border-radius: 0 8px 8px 0;
+    word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  blockquote.q.muted { border-left-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.025); }
+  blockquote.q.thin { border-left-width: 2px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--panel-border); }
-    th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
-    tbody tr:hover { background: rgba(255,255,255,0.03); }
-    .delta-pos { color: var(--good); }
-    .delta-neg { color: var(--bad); }
-    .delta-zero { color: var(--neutral); }
+  /* ---------- badges ---------- */
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 10px; border-radius: 5px; line-height: 1.4; white-space: nowrap; }
+  .badge.outline { background: transparent; border: 1px solid currentColor; }
+  .score-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 26px; padding: 0 8px; border-radius: 6px; font-weight: 800; font-size: 14px; color: #111213; transition: transform 0.12s ease; }
+  .score-badge:hover { transform: scale(1.03); }
+  .score-badge.mini { min-width: 22px; height: 21px; font-size: 12px; border-radius: 5px; }
 
-    .banner {
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.4);
-      color: #fcd34d;
-      padding: 10px 14px;
-      border-radius: 6px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      display: none;
-    }
-    .banner.visible { display: block; }
-  </style>
+  .score-block { width: 72px; height: 72px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 40px; flex-shrink: 0; }
+  .score-block.sm { font-size: 30px; }
+
+  /* ---------- layout ---------- */
+  .wrap { position: relative; z-index: 2; max-width: 1100px; margin: 0 auto; padding: 28px 28px 100px; }
+  #view-upload, #view-list, #view-detail { animation: fadeIn 0.3s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 22px; margin-bottom: 30px; }
+  .logo { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+  .logo .c { color: var(--cream); } .logo .i { color: var(--orange); }
+
+  .btn { font-family: "Manrope"; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 9px; }
+  .btn-pill { background: var(--orange); color: var(--cream); border-radius: 100px; padding: 13px 26px; font-size: 15px; }
+  .btn-pill:hover { background: var(--orange-hover); }
+  .btn-pill:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1px solid rgba(251,114,61,0.5); color: var(--orange); border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 600; }
+  .btn-outline:hover { background: rgba(251,114,61,0.08); border-color: var(--orange); }
+  .btn-back { background: transparent; border: none; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; transition: color 0.15s; }
+  .btn-back:hover { color: var(--cream); }
+  .link { color: var(--text-muted); cursor: pointer; font-size: 13px; transition: color 0.15s; }
+  .link:hover { color: var(--orange); }
+
+  /* ---------- VIEW 0 — upload ---------- */
+  .upload-screen { min-height: 88vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .upload-logo { font-weight: 800; font-size: 17px; letter-spacing: 0.02em; margin-bottom: 28px; }
+  .upload-card { width: 100%; max-width: 540px; }
+  .dropzone {
+    min-height: 280px; border-radius: 18px; border: 2px dashed rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.02); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 36px; cursor: pointer; transition: border-color 0.18s ease, background 0.18s ease;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: rgba(251,114,61,0.5); background: rgba(251,114,61,0.04); }
+  .dropzone svg { color: var(--orange); }
+  .dz-primary { font-weight: 600; font-size: 16px; color: var(--cream); }
+  .dz-secondary { font-weight: 400; font-size: 13px; color: var(--text-muted); }
+  .file-chip { display: flex; align-items: center; justify-content: center; gap: 12px; }
+  .file-chip .fname { color: var(--orange); font-weight: 600; }
+  .file-chip .fsize { color: var(--text-muted); font-size: 13px; }
+  .file-chip .fclear { cursor: pointer; color: var(--text-muted); border: 1px solid var(--border); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.12s; }
+  .file-chip .fclear:hover { color: var(--cream); border-color: var(--text-muted); }
+  .upload-actions { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+  .track-card { width: 100%; max-width: 540px; border-radius: 16px; padding: 22px; }
+  .track-step { display: flex; align-items: center; gap: 14px; padding: 13px 4px; text-align: left; }
+  .track-step + .track-step { border-top: 1px solid rgba(255,255,255,0.05); }
+  .track-ind { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; border: 2px solid var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #111213; }
+  .track-step.active .track-ind { border-color: var(--orange); border-top-color: transparent; animation: spin 0.8s linear infinite; }
+  .track-step.done .track-ind { background: var(--orange); border-color: var(--orange); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .track-label { font-weight: 600; font-size: 14px; color: var(--text-muted); }
+  .track-step.active .track-label, .track-step.done .track-label { color: var(--cream); }
+
+  .error-box { width: 100%; max-width: 540px; border-radius: 14px; padding: 24px; text-align: left; background: rgba(239,68,68,0.06); box-shadow: inset 0 0 0 1px rgba(239,68,68,0.4); }
+  .error-box h4 { font-weight: 700; font-size: 16px; color: var(--cream); margin: 0 0 8px; }
+  .error-box code { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; color: var(--orange); margin-top: 4px; }
+  .error-box p { color: var(--text-dim); font-size: 14px; margin: 6px 0; }
+
+  /* ---------- VIEW 1 — list ---------- */
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; font-weight: 600; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); padding: 0 14px 16px; }
+  thead th.num { text-align: center; }
+  tbody tr { border-top: 1px solid rgba(255,255,255,0.06); cursor: pointer; border-left: 2px solid transparent; transition: background 0.12s ease, border-color 0.12s ease; }
+  tbody tr:hover { background: rgba(251,114,61,0.04); border-left-color: var(--orange); }
+  tbody td { padding: 18px 14px; vertical-align: middle; }
+  tbody td.num { text-align: center; }
+  .startup-name { font-weight: 700; font-size: 15px; color: var(--cream); }
+  .cell-date { font-weight: 400; color: var(--text-muted); font-size: 13px; }
+  .cell-dash { color: var(--text-muted); }
+  .list-stats { display: flex; gap: 28px; margin-top: 26px; padding-left: 14px; }
+  .list-stats .stat { font-size: 13px; color: var(--text-muted); }
+  .list-stats .stat b { font-weight: 800; color: var(--text-dim); }
+
+  /* ---------- VIEW 2 — detail ---------- */
+  .detail-header { border-radius: 18px; padding: 30px; margin: 22px 0 26px; }
+  .detail-header.glow { background: linear-gradient(135deg, rgba(251,114,61,0.08) 0%, rgba(255,255,255,0.01) 50%), rgba(255,255,255,0.02); }
+  .dh-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+  .dh-startup { font-weight: 800; font-size: 32px; color: var(--cream); letter-spacing: -0.02em; line-height: 1.1; }
+  .dh-date { font-size: 13px; color: var(--text-muted); margin-top: 5px; }
+  .dh-meta { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+  .evidence { margin-top: 18px; }
+
+  .score-row { display: flex; align-items: center; gap: 20px; margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
+  .score-label-k { font-weight: 600; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .score-label-v { font-weight: 700; font-size: 22px; color: var(--cream); margin-top: 4px; }
+  .topic-chips { display: flex; gap: 9px; flex-wrap: wrap; margin-left: auto; }
+  .topic-chip { display: inline-flex; align-items: center; gap: 9px; border-radius: 10px; padding: 9px 13px; cursor: pointer; color: var(--cream); font-weight: 700; font-size: 13px; transition: transform 0.12s ease; }
+  .topic-chip:hover { transform: translateY(-1px); }
+
+  .interv-bar { display: flex; gap: 11px; margin-top: 24px; flex-wrap: wrap; }
+  .interv-chip { display: flex; align-items: center; gap: 11px; border-radius: 11px; padding: 11px 15px; border-left: 3px solid var(--flag); }
+  .interv-chip .ic-count { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .interv-chip .ic-label { font-weight: 600; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+
+  /* parameter cards */
+  .params { display: flex; flex-direction: column; gap: 14px; }
+  .param-card { border-radius: 14px; box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 1px rgba(255,255,255,0.06); transition: box-shadow 0.18s ease, background 0.18s ease; background: rgba(255,255,255,0.015); }
+  .param-card:hover { box-shadow: inset 0 0 0 1px rgba(251,114,61,0.4), inset 0 1px 1px rgba(255,255,255,0.06); background: rgba(255,255,255,0.028); }
+  .param-card::before { display: none; }
+  .param-head { display: flex; align-items: center; gap: 16px; padding: 20px 22px; cursor: pointer; user-select: none; }
+  .param-name-wrap { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+  .param-name { font-weight: 700; font-size: 20px; color: var(--cream); letter-spacing: -0.01em; }
+  .param-fulllabel { font-weight: 500; font-size: 12px; color: var(--text-muted); }
+  .param-explain { font-weight: 400; font-size: 13px; color: var(--text-muted); flex: 1; min-width: 0; }
+  .param-arrow { color: var(--text-muted); font-size: 12px; transition: transform 0.2s ease; flex-shrink: 0; }
+  .param-card.open .param-arrow { transform: rotate(90deg); }
+  .param-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s ease; }
+  .param-card.open .param-body { grid-template-rows: 1fr; }
+  .pb-inner { overflow: hidden; min-height: 0; }
+  .pb-pad { padding: 2px 22px 24px; }
+
+  .sub-eyebrow { margin: 22px 0 12px; }
+  .sub-eyebrow:first-child { margin-top: 6px; }
+  .problem { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; }
+  .problem + .problem { border-top: 1px solid rgba(255,255,255,0.05); }
+  .problem-text { flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: anywhere; }
+  .problem-summary { font-weight: 500; font-size: 14px; color: var(--cream); line-height: 1.5; }
+
+  .interv { border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; background: rgba(255,255,255,0.022); }
+  .interv:last-child { margin-bottom: 0; }
+  .interv-cite { font-weight: 600; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange); margin-bottom: 9px; }
+  .interv-top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .interv-summary { font-weight: 600; font-size: 15px; color: var(--cream); line-height: 1.45; word-wrap: break-word; overflow-wrap: anywhere; }
+  .interv-note { font-weight: 400; font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+  .interv-note b { color: var(--text-dim); font-weight: 600; }
+
+  .synthesis { margin-top: 18px; padding: 16px 18px; border-radius: 10px; background: rgba(251,114,61,0.04); border: 1px dashed rgba(251,114,61,0.2); }
+  .synthesis-text { font-weight: 400; font-size: 14px; color: var(--cream); line-height: 1.8; margin-top: 9px; }
+
+  /* real session */
+  .stmt { margin-bottom: 8px; }
+  .dual-stat { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 22px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .stat-block { flex: 1; min-width: 220px; border-radius: 12px; padding: 18px 20px; }
+  .stat-block .sb-score { font-weight: 800; font-size: 30px; }
+  .stat-block .sb-obs { font-family: "Crimson Text", serif; font-style: italic; font-size: 14px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+  .next-steps { list-style: none; padding: 0; margin: 12px 0 0; }
+  .next-steps li { display: flex; gap: 11px; align-items: flex-start; padding: 9px 0; font-size: 14px; color: var(--cream); font-weight: 400; }
+  .next-steps li::before { content: "→"; color: var(--orange); font-weight: 700; }
+
+  .chart-card { border-radius: 16px; padding: 24px; margin-top: 22px; }
+  .chart-holder { position: relative; height: 280px; margin-top: 10px; }
+  .chart-note { color: var(--text-muted); font-size: 13px; margin-top: 12px; text-align: center; }
+
+  .empty-note { color: var(--text-muted); font-size: 13px; font-style: italic; font-family: "Crimson Text", serif; }
+  .hidden { display: none !important; }
+
+  /* ============================================================
+     LANDING PAGE  (Aura spec — re-skinned to Conquest Impact)
+     ============================================================ */
+  .container { position: relative; z-index: 2; max-width: 72rem; margin: 0 auto; padding: 0 24px; }
+  .section { position: relative; z-index: 2; max-width: 72rem; margin: 0 auto; padding: 80px 24px; }
+  @media (min-width: 768px) { .section { padding: 112px 24px; } }
+
+  /* entrance */
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeUp   { from { opacity: 0; transform: translateY(20px); }  to { opacity: 1; transform: none; } }
+  @keyframes fadeUp40 { from { opacity: 0; transform: translateY(40px); }  to { opacity: 1; transform: none; } }
+  @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+  .anim { opacity: 0; animation-fill-mode: forwards; animation-timing-function: cubic-bezier(.22,1,.36,1); }
+  .a-down { animation-name: fadeDown; animation-duration: .6s; }
+  .a-up   { animation-name: fadeUp;   animation-duration: .7s; }
+  .a-up40 { animation-name: fadeUp40; animation-duration: .8s; }
+  .a-h1   { animation-name: fadeUp40; animation-duration: .8s; }
+  .a-in   { animation-name: fadeIn;   animation-duration: .8s; }
+
+  /* shiny gradient headline word */
+  @keyframes shiny { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+  .animate-shiny { animation: shiny 6s linear infinite; }
+  .shiny {
+    background-image: linear-gradient(to right, #1a0800 0%, #3D0E00 12.5%, #FFBF99 32.5%, #FB723D 50%, #3D0E00 67.5%, #1a0800 87.5%, #1a0800 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+    filter: url(#c3-noise);
+  }
+
+  /* white apple-style pill button */
+  .pill-btn { font-family: "Manrope"; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 100px; background: #fff; color: #000; font-weight: 500; font-size: 14px; padding: 12px 20px; border: none; cursor: pointer; transition: all .2s ease; }
+  .pill-btn:hover { background: rgba(255,255,255,0.9); }
+  .pill-btn:active { transform: scale(0.98); }
+  .pill-btn .chev { transition: transform .2s ease; }
+  .pill-btn:hover .chev { transform: translateX(1px); }
+  .ghost-btn { font-family: "Manrope"; display: inline-flex; align-items: center; gap: 6px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 14px; font-weight: 500; padding: 12px 20px; background: transparent; cursor: pointer; transition: background .15s ease; }
+  .ghost-btn:hover { background: rgba(255,255,255,0.05); }
+
+  /* navbar */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; }
+  .nav-logo { color: #fff; display: inline-flex; }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-link { color: rgba(255,255,255,0.7); font-size: 14px; font-weight: 500; cursor: pointer; transition: color .15s ease; }
+  .nav-link:hover { color: #fff; }
+  @media (max-width: 767px) { .nav-links, .nav-right-desktop { display: none; } }
+  .nav-menu-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; display: none; align-items: center; justify-content: center; cursor: pointer; }
+  @media (max-width: 767px) { .nav-menu-btn { display: inline-flex; } }
+
+  /* hero */
+  .hero { padding: 64px 0 80px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+  @media (min-width: 768px) { .hero { padding-top: 112px; } }
+  .hero h1 { font-size: clamp(40px, 8.5vw, 72px); font-weight: 600; letter-spacing: -0.02em; line-height: 0.9; margin: 0; }
+  .hero h1 .l1 { display: block; color: #FFFBF9; }
+  .hero h1 .l2 { display: block; }
+  .hero-p { margin: 32px 0 0; color: rgba(255,255,255,0.6); max-width: 28rem; font-size: 16px; line-height: 1.5; }
+  .hero-cta { margin-top: 32px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .hero-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+  /* macOS menu bar strip */
+  .menubar { height: 40px; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); position: relative; z-index: 2; }
+  .menubar-inner { max-width: 72rem; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+  .menubar-left { display: flex; align-items: center; gap: 18px; }
+  .mb-brand { font-weight: 700; color: #fff; }
+  .mb-item { color: rgba(255,255,255,0.6); }
+  .menubar-right { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.6); }
+  @media (max-width: 640px) { .mb-hide-sm { display: none; } }
+  @media (max-width: 767px) { .mb-hide-md { display: none; } }
+
+  /* session analysis window */
+  .window-wrap { position: relative; z-index: 2; max-width: 72rem; margin: 0 auto; padding: 64px 24px; }
+  @media (min-width: 768px) { .window-wrap { padding: 96px 24px; } }
+  .window { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); background: rgba(14,16,20,0.9); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); }
+  .window-titlebar { position: relative; display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .traffic { display: flex; gap: 8px; }
+  .traffic span { width: 12px; height: 12px; border-radius: 50%; }
+  .window-title { position: absolute; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.5); pointer-events: none; }
+  .window-body { display: grid; grid-template-columns: 3fr 4fr 5fr; height: 560px; }
+  @media (max-width: 880px) { .window-body { grid-template-columns: 1fr; height: auto; } }
+
+  .win-sidebar { border-right: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); padding: 16px; overflow-y: auto; }
+  .win-compose { font-family: "Manrope"; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 8px; background: #fff; color: #000; font-weight: 600; font-size: 12px; padding: 9px 12px; border: none; cursor: pointer; margin-bottom: 14px; }
+  .win-navitem { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.6); font-size: 13px; transition: background .12s ease; margin-bottom: 4px; }
+  .win-navitem:hover { background: rgba(255,255,255,0.05); }
+  .win-navitem.active { background: rgba(255,255,255,0.1); color: #fff; }
+  .win-navitem .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .win-navitem .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .win-navitem .dt { font-size: 11px; color: rgba(255,255,255,0.4); flex-shrink: 0; }
+  .win-section-title { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); font-weight: 600; margin: 20px 0 8px; }
+  .win-lbl { display: flex; align-items: center; gap: 10px; padding: 6px 10px; font-size: 12px; color: rgba(255,255,255,0.6); }
+  .win-lbl .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .win-list { border-right: 1px solid rgba(255,255,255,0.08); overflow-y: auto; }
+  .win-search { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+  .win-search input { background: transparent; border: none; outline: none; color: #fff; font-size: 13px; font-family: "Manrope"; flex: 1; }
+  .win-row { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background .12s ease; display: flex; gap: 10px; align-items: flex-start; }
+  .win-row:hover { background: rgba(255,255,255,0.03); }
+  .win-row.active { background: rgba(251,114,61,0.06); }
+  .win-row .row-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .win-row .row-main { flex: 1; min-width: 0; }
+  .win-row .row-title { font-weight: 600; font-size: 13px; color: #fff; }
+  .win-row .row-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+  .win-row .row-meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+  .win-detail { display: flex; flex-direction: column; min-height: 0; }
+  .win-toolbar { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+  .win-tool { width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.6); cursor: pointer; border: none; background: transparent; transition: background .12s ease; }
+  .win-tool:hover { background: rgba(255,255,255,0.05); }
+  .win-tool.spacer { margin-left: auto; }
+  .win-dhead { display: flex; gap: 14px; align-items: center; padding: 18px 20px 16px; }
+  .score-bubble { width: 64px; height: 64px; border-radius: 14px; background: linear-gradient(135deg, #FB723D, #3D0E00); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 28px; color: #fff; flex-shrink: 0; }
+  .win-dhead .dh-name { font-weight: 700; font-size: 22px; color: var(--cream); letter-spacing: -0.01em; line-height: 1.1; }
+  .win-dhead .dh-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+  .win-dhead .dh-pills { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .win-dbody { padding: 4px 20px 24px; overflow-y: auto; min-height: 0; }
+  .summary-card { border-radius: 12px; padding: 14px 16px; background: rgba(255,255,255,0.02); box-shadow: inset 0 1px 1px rgba(255,255,255,0.08); margin: 14px 0 18px; }
+  .summary-card .sc-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #FFBF99; }
+  .summary-card .sc-text { margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.5; }
+
+  /* pipeline section */
+  .pipe-grid { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; }
+  @media (min-width: 768px) { .pipe-grid { grid-template-columns: 1fr 1fr; gap: 64px; } }
+  .eyebrow-row { display: flex; align-items: center; gap: 10px; }
+  .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+  .eyebrow-label { font-size: 13px; font-weight: 600; color: #fff; }
+  .eyebrow-tag { font-size: 12px; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 100px; padding: 2px 8px; }
+  .pipe-h2 { margin-top: 20px; font-size: clamp(30px, 5vw, 48px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.02; }
+  .pipe-p { margin-top: 24px; color: rgba(255,255,255,0.6); font-size: 16px; line-height: 1.6; max-width: 28rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .chip { font-size: 12px; color: rgba(255,255,255,0.7); padding: 6px 12px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+  .pipe-card { border-radius: 16px; padding: 20px; }
+  .pipe-eyebrow { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+  .layer-card { border-radius: 10px; padding: 12px 14px; margin-top: 10px; display: flex; align-items: flex-start; gap: 12px; }
+  .layer-card .lc-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .layer-card .lc-main { flex: 1; min-width: 0; }
+  .layer-card .lc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .layer-card .lc-label { font-weight: 700; font-size: 14px; color: #fff; }
+  .layer-card .lc-num { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; flex-shrink: 0; }
+  .layer-card .lc-item { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 3px; }
+
+  /* final CTA */
+  .cta-wrap { position: relative; z-index: 2; max-width: 72rem; margin: 0 auto; padding: 80px 24px; }
+  @media (min-width: 768px) { .cta-wrap { padding: 128px 24px; } }
+  .cta { position: relative; overflow: hidden; border-radius: 24px; padding: 64px 32px; text-align: center; }
+  @media (min-width: 768px) { .cta { padding: 96px 32px; } }
+  .cta-glow { position: absolute; inset: 0; background: radial-gradient(600px circle at 50% 0%, rgba(251,114,61,0.15), transparent 70%); opacity: 0.6; pointer-events: none; }
+  .cta h2 { position: relative; font-size: clamp(36px, 6vw, 60px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.02; margin: 0; }
+  .cta-p { position: relative; margin: 24px auto 0; color: rgba(255,255,255,0.6); max-width: 28rem; font-size: 14px; line-height: 1.6; }
+  .cta-btns { position: relative; margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* app views must sit above the fixed video background (z-index 0) */
+  #view-upload, #view-list, #view-detail, #view-sessions { position: relative; z-index: 2; }
+  #view-list, #view-detail, #view-sessions { max-width: 72rem; margin: 0 auto; padding: 40px 24px 100px; }
+
+  /* ---------- VIEW 3 — sessions ---------- */
+  .sessions-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 22px; margin-bottom: 28px; }
+  .sessions-grid { display: flex; flex-direction: column; gap: 24px; }
+  .session-card { border-radius: 24px; padding: 28px; }
+  .session-card-inner { display: grid; grid-template-columns: 30% 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 880px) { .session-card-inner { grid-template-columns: 1fr; } }
+  .sv-left { display: flex; flex-direction: column; min-width: 0; }
+  .sv-right { min-width: 0; }
+  .sv-name { font-weight: 800; font-size: 24px; color: var(--cream); letter-spacing: -0.01em; line-height: 1.15; }
+  .sv-date { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+  .sv-link { color: var(--orange); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-block; margin-top: 18px; transition: color 0.15s; }
+  .sv-link:hover { color: var(--orange-hover); text-decoration: underline; }
+</style>
 </head>
 <body>
-  <h1>Impactometer</h1>
-  <p class="subtitle">Startup maturity progression across pipeline sessions</p>
 
-  <div class="controls">
-    <button id="btn-reload">Reload from scores.json</button>
-    <button id="btn-sample">Load Sample Data</button>
+<!-- noise filters (Aura spec) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="grain">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0" />
+    <feComposite in2="SourceGraphic" operator="in" result="noise" />
+    <feBlend in="SourceGraphic" in2="noise" mode="multiply" />
+  </filter>
+  <filter id="c3-noise">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0" />
+    <feComposite in2="SourceGraphic" operator="in" result="noise" />
+    <feBlend in="SourceGraphic" in2="noise" mode="multiply" />
+  </filter>
+</svg>
+
+<!-- fixed fullscreen Aura video background (orange via hue-rotate) -->
+<div class="bg-fixed" aria-hidden="true">
+  <video autoplay loop muted playsinline
+    src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260508_064122_c4750c0e-7476-4b44-94a2-a85a65c63bf2.mp4"></video>
+  <div class="bg-overlay"></div>
+</div>
+
+<span class="guide l"></span><span class="guide r"></span>
+
+<input type="file" id="landingFile" accept=".txt" class="hidden" onchange="onLandingFile(event)">
+
+<!-- app view containers (upload / list / detail / sessions) -->
+<div id="view-upload" class="hidden"></div>
+<div id="view-list" class="hidden"></div>
+<div id="view-detail" class="hidden"></div>
+<div id="view-sessions" class="hidden"></div>
+
+<!-- ============ LANDING PAGE ============ -->
+<div id="view-landing">
+
+<!-- ============ SECTION 1 — NAVBAR ============ -->
+<nav class="container nav anim a-down">
+  <span class="nav-logo">
+    <svg width="32" height="32" viewBox="0 0 256 256" fill="#fff" aria-hidden="true"><path d="M 0 128 C 70.692 128 128 185.308 128 256 L 64 256 C 64 220.654 35.346 192 0 192 Z M 256 192 C 220.654 192 192 220.654 192 256 L 128 256 C 128 185.308 185.308 128 256 128 Z M 128 0 C 128 70.692 70.692 128 0 128 L 0 64 C 35.346 64 64 35.346 64 0 Z M 192 0 C 192 35.346 220.654 64 256 64 L 256 128 C 185.308 128 128 70.692 128 0 Z"/></svg>
+  </span>
+  <div class="nav-links" id="navLinks"></div>
+  <div class="nav-right-desktop">
+    <button class="pill-btn" onclick="goUpload()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload Transcript
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
   </div>
+  <button class="nav-menu-btn" aria-label="Menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+</nav>
 
-  <div id="banner" class="banner"></div>
+<!-- ============ SECTION 2 — HERO ============ -->
+<section class="container hero">
+  <h1 class="anim a-h1" style="animation-delay:.3s">
+    <span class="l1">Mentor Sessions.</span>
+    <span class="l2 shiny animate-shiny">Analyzed.</span>
+  </h1>
+  <p class="hero-p anim a-up" style="animation-delay:.5s">Conquest's pipeline reads every mentor session, classifies each intervention, and calculates a deterministic score — with every observation cited back to the verbatim transcript.</p>
+  <div class="hero-cta anim a-up" style="animation-delay:.7s">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+      <button class="pill-btn" onclick="goUpload()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Transcript
+        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="ghost-btn" onclick="showSessions()">
+        View Sample Sessions
+        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <span class="hero-sub">Gemini 2.5 Flash · 5-layer pipeline · Verbatim source citations</span>
+  </div>
+</section>
 
-  <section>
-    <h2>Progress Chart</h2>
-    <div id="chart-wrap"><canvas id="progress-chart"></canvas></div>
-  </section>
+<!-- ============ SECTION 4 — SESSION ANALYSIS WINDOW ============ -->
+<div class="window-wrap">
+  <div class="window anim a-up40" id="session-window" style="animation-delay:1.1s">
+    <div class="window-titlebar">
+      <div class="traffic"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+      <div class="window-title">Conquest Impact — Session Analysis</div>
+    </div>
+    <div class="window-body" id="session-window-body"></div>
+  </div>
+</div>
 
-  <section>
-    <h2>Startup Stats</h2>
-    <select id="startup-select"><option value="">— Select a startup —</option></select>
-    <div id="stats-card" class="empty-card">Select a startup to see stats.</div>
-  </section>
+<!-- ============ SECTION 5 — PIPELINE ============ -->
+<section class="section" id="pipeline-section">
+  <div class="pipe-grid">
+    <div class="anim a-up" style="animation-delay:.05s">
+      <div class="eyebrow-row"><span class="eyebrow-dot"></span><span class="eyebrow-label">Pipeline</span><span class="eyebrow-tag">5 layers</span></div>
+      <h2 class="pipe-h2">Every word.<br/>Accounted for.</h2>
+      <p class="pipe-p">The pipeline reads the raw transcript, groups discussion by parameter, classifies each mentor intervention, and calculates a deterministic 0–4 score. No AI guessing. No black box.</p>
+      <div class="chips">
+        <span class="chip">Deepgram transcription</span>
+        <span class="chip">Gemini 2.5 Flash</span>
+        <span class="chip">Deterministic scoring</span>
+        <span class="chip">Verbatim citations</span>
+      </div>
+    </div>
+    <div class="glass pipe-card anim a-up" style="animation-delay:.15s">
+      <div class="pipe-eyebrow">Pipeline layers · 45 second runtime</div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#FB723D"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Transcription</span><span class="lc-num">Layer 1</span></div><div class="lc-item">Deepgram Nova-3 diarizes audio</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#FFBF99"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Summarizer</span><span class="lc-num">Layer 2</span></div><div class="lc-item">Groups discussion by 5 parameters</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#f59e0b"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Classifier</span><span class="lc-num">Layer 3</span></div><div class="lc-item">Scores sentiment and receptiveness</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#84cc16"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Intervention Mapper</span><span class="lc-num">Layer 4</span></div><div class="lc-item">REBUTTAL / WARNING / RECOMMENDATION / FLAG</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#22c55e"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Scorer</span><span class="lc-num">Layer 5</span></div><div class="lc-item">Deterministic 0–4. Pure Python.</div></div></div>
+    </div>
+  </div>
+</section>
 
-  <section>
-    <h2>Session History</h2>
-    <div id="table-wrap" class="empty-card">Select a startup to see session history.</div>
-  </section>
+<!-- ============ SECTION 9 — UPLOAD CTA ============ -->
+<div class="cta-wrap">
+  <div class="glass cta anim a-up40">
+    <div class="cta-glow"></div>
+    <h2>Drop a transcript.<br/>See the analysis.</h2>
+    <p class="cta-p">Upload any .txt mentor session file. The pipeline runs in under 60 seconds and returns every intervention mapped, scored, and cited.</p>
+    <div class="cta-btns">
+      <button class="pill-btn" onclick="pickTranscript()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Transcript
+        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="ghost-btn" onclick="document.getElementById('session-window').scrollIntoView({behavior:'smooth',block:'center'})">
+        Load sample sessions
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
 
-  <script>
-    // -------------------------------------------------------------------
-    // DATA LOADING NOTE
-    // -------------------------------------------------------------------
-    // This dashboard loads ../data/scores.json via fetch(). Browsers block
-    // fetch() on the file:// protocol due to CORS, so opening index.html
-    // directly will fail. To view real data:
-    //
-    //   1) From the repo root:  python3 -m http.server 8000
-    //   2) Open:  http://localhost:8000/dashboard/index.html
-    //
-    // Or click "Load Sample Data" to populate the dashboard with mock
-    // data without needing a server or the real pipeline.
-    // -------------------------------------------------------------------
+</div><!-- /#view-landing -->
 
-    const MATURITY_BANDS = [
-      { min: 0,   max: 4,   color: "rgba(239, 68, 68, 0.12)",  label: "Pre-GTM"     },
-      { min: 4,   max: 6.5, color: "rgba(245, 158, 11, 0.12)", label: "Hypothesis"  },
-      { min: 6.5, max: 8.5, color: "rgba(34, 197, 94, 0.12)",  label: "Validation"  },
-      { min: 8.5, max: 10,  color: "rgba(59, 130, 246, 0.12)", label: "Scaling"     },
-    ];
-
-    function maturityForScore(score) {
-      if (score < 4) return "Pre-GTM";
-      if (score < 6.5) return "Hypothesis Stage";
-      if (score < 8.5) return "Validation Stage";
-      return "Scaling Stage";
-    }
-
-    const PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#22d3ee"];
-
-    // Application state
-    let state = {
-      data: { startups: {}, cohort_averages: [] },
-      selected: null,
-      chart: null,
-    };
-
-    // -------------------------------------------------------------------
-    // Chart.js plugin: paint maturity bands behind the data
-    // -------------------------------------------------------------------
-    const bandsPlugin = {
-      id: "maturityBands",
-      beforeDatasetsDraw(chart) {
-        const { ctx, chartArea, scales: { y } } = chart;
-        if (!chartArea) return;
-        const { left, right } = chartArea;
-
-        ctx.save();
-        MATURITY_BANDS.forEach(b => {
-          const yTop = y.getPixelForValue(b.max);
-          const yBot = y.getPixelForValue(b.min);
-          ctx.fillStyle = b.color;
-          ctx.fillRect(left, yTop, right - left, yBot - yTop);
-
-          ctx.fillStyle = "rgba(226, 232, 240, 0.5)";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(b.label, left + 8, yTop + 14);
-        });
-        ctx.restore();
-      },
-    };
-
-    // -------------------------------------------------------------------
-    // Build Chart.js datasets from current state.data
-    // -------------------------------------------------------------------
-    function buildDatasets() {
-      const startupEntries = Object.entries(state.data.startups || {});
-      const datasets = [];
-
-      startupEntries.forEach(([id, info], idx) => {
-        const color = PALETTE[idx % PALETTE.length];
-        const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
-        const isSelected = state.selected === id;
-
-        datasets.push({
-          label: id,
-          data: sessions.map(s => ({ x: s.session, y: s.score })),
-          borderColor: color,
-          backgroundColor: color,
-          borderWidth: isSelected ? 3 : 1.5,
-          tension: 0.25,
-          pointRadius: isSelected ? 5 : 3,
-          pointHoverRadius: 6,
-          _sessionMeta: sessions, // attached for tooltip lookup
-        });
-      });
-
-      const cohort = state.data.cohort_averages || [];
-      if (cohort.length) {
-        datasets.push({
-          label: "Cohort average",
-          data: cohort.map(c => ({ x: c.session, y: c.avg_score })),
-          borderColor: "rgba(148, 163, 184, 0.9)",
-          backgroundColor: "rgba(148, 163, 184, 0.9)",
-          borderWidth: 2,
-          borderDash: [6, 4],
-          tension: 0.25,
-          pointRadius: 3,
-          _isCohort: true,
-        });
-      }
-      return datasets;
-    }
-
-    function renderChart() {
-      const canvas = document.getElementById("progress-chart");
-      const datasets = buildDatasets();
-
-      if (state.chart) {
-        state.chart.data.datasets = datasets;
-        state.chart.update();
-        return;
-      }
-
-      state.chart = new Chart(canvas, {
-        type: "line",
-        data: { datasets },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: "nearest", intersect: false },
-          scales: {
-            x: {
-              type: "linear",
-              min: 1,
-              max: 6,
-              ticks: { stepSize: 1, color: "#94a3b8" },
-              title: { display: true, text: "Session", color: "#94a3b8" },
-              grid: { color: "rgba(148, 163, 184, 0.1)" },
-            },
-            y: {
-              min: 0,
-              max: 10,
-              ticks: { stepSize: 1, color: "#94a3b8" },
-              title: { display: true, text: "Doc Quality Score", color: "#94a3b8" },
-              grid: { color: "rgba(148, 163, 184, 0.1)" },
-            },
+<script>
+/* =====================================================================
+   SAMPLE DATA (untouched)
+   ===================================================================== */
+const SAMPLE_DATA = {
+  sessions: [
+    {
+      id: "session_001", startup: "NoveltyWealth", date: "2026-06-08",
+      overall_score: 4, sentiment: "constructive", founder_receptiveness: "high",
+      layer4: {
+        parameter_analysis: {
+          GTM: {
+            problems_identified: [
+              { problem_summary: "Founder has no actual CAC number despite being live for two days and running paid acquisition.", severity: "critical", source_statements: ["What's your plan to acquire customers? Have you figured out your acquisition cost and through what channels you'll go?"] },
+              { problem_summary: "B2B2C corporate channel strategy is unvalidated and historically difficult to scale in Indian fintech.", severity: "significant", source_statements: ["The corporate B2B2C angle, while good, has been explored for over a decade and is challenging to scale effectively due to low interest from HR departments."] }
+            ],
+            interventions: [
+              { intervention_type: "WARNING", intervention_summary: "Retail user acquisition in fintech is structurally expensive and retention is a known failure point across the category.", aligned_with_founder_strategy: "contradicting", alignment_note: "Founder is banking on organic and referral growth but mentor flagged this has failed for every comparable player.", source_statement: "Retail user acquisition cost in Fintech is very high, and engagement/retention are challenging for all Fintech apps." },
+              { intervention_type: "RECOMMENDATION", intervention_summary: "Founder should have a fundraising strategy in place alongside the GTM roadmap.", aligned_with_founder_strategy: "gap", alignment_note: "Founder had not mentioned fundraising until mentor raised it.", source_statement: "You should also have a fundraising strategy in place." },
+              { intervention_type: "REBUTTAL", intervention_summary: "Subscription businesses are structurally hard in India — most fintech companies pivot to lending, not advisory subscriptions.", aligned_with_founder_strategy: "contradicting", alignment_note: "Founder's entire monetization model is subscription-based, which mentor directly challenged.", source_statement: "Subscription businesses are difficult in India; people readily pay for entertainment but show skepticism for financial services." }
+            ],
+            parameter_synthesis: "Mentor challenged the GTM thesis on multiple fronts — acquisition cost, channel strategy, and monetization model. Founder showed high receptiveness but no concrete changes were committed to.",
+            synthesis_evidence: ["Retail user acquisition cost in Fintech is very high", "Subscription businesses are difficult in India"]
           },
-          plugins: {
-            legend: { labels: { color: "#e2e8f0" } },
-            tooltip: {
-              callbacks: {
-                title: (items) => {
-                  const it = items[0];
-                  return `Session ${it.parsed.x}`;
-                },
-                label: (ctx) => {
-                  const ds = ctx.dataset;
-                  if (ds._isCohort) {
-                    return `Cohort average: ${ctx.parsed.y.toFixed(2)}`;
-                  }
-                  const sessionMeta = (ds._sessionMeta || []).find(s => s.session === ctx.parsed.x);
-                  const lines = [`${ds.label}: ${ctx.parsed.y.toFixed(2)}`];
-                  if (sessionMeta) {
-                    const d = sessionMeta.delta_from_baseline;
-                    const sign = d > 0 ? "+" : "";
-                    lines.push(`Δ from baseline: ${sign}${d.toFixed(2)}`);
-                    lines.push(`Maturity: ${sessionMeta.maturity}`);
-                  }
-                  return lines;
-                },
-              },
-            },
-          },
+          MVP: {
+            problems_identified: [
+              { problem_summary: "App UI is too technical for the target user — looks like a hardcore fintech product, not a friendly advisor.", severity: "significant", source_statements: ["Your UI currently looks like a hardcore FinTech app and is too technical for basic users."] }
+            ],
+            interventions: [
+              { intervention_type: "RECOMMENDATION", intervention_summary: "UI needs to be stupid simple with micro-animations and proactive AI, similar to a friend explaining things.", aligned_with_founder_strategy: "redirecting", alignment_note: "Founder focused on feature depth; mentor redirected to simplicity and engagement.", source_statement: "It needs to be stupid simple, intuitive, and engaging, similar to a friend explaining things, with proactive AI using micro-animations instead of text." },
+              { intervention_type: "RECOMMENDATION", intervention_summary: "Retirement planning feature needs a more interactive back-and-forth UI rather than a calculator approach.", aligned_with_founder_strategy: "redirecting", alignment_note: "Founder described a planning feature; mentor said the interaction model needs rethinking.", source_statement: "Features like retirement planning need more interactive back-and-forth UI." }
+            ],
+            parameter_synthesis: "Mentor identified a clear gap between feature richness and user experience quality. Both interventions were recommendations to redirect the product approach.",
+            synthesis_evidence: ["Your UI currently looks like a hardcore FinTech app", "needs to be stupid simple"]
+          }
         },
-        plugins: [bandsPlugin],
-      });
-    }
-
-    // -------------------------------------------------------------------
-    // Selector + stats + table
-    // -------------------------------------------------------------------
-    function renderSelector() {
-      const select = document.getElementById("startup-select");
-      const ids = Object.keys(state.data.startups || {});
-      const prev = state.selected;
-
-      select.innerHTML = '<option value="">— Select a startup —</option>' +
-        ids.map(id => `<option value="${id}">${id}</option>`).join("");
-
-      if (prev && ids.includes(prev)) {
-        select.value = prev;
-      } else {
-        state.selected = null;
+        layer4_metadata: { parameters_analysed: ["GTM", "MVP"], intervention_type_counts: { REBUTTAL: 1, WARNING: 1, RECOMMENDATION: 3, FLAG_NO_SOLUTION: 0 }, low_confidence_flags: [] }
+      },
+      layer5: {
+        parameter_scores: { GTM: 4, MVP: 3 },
+        score_explanations: { GTM: "1 WARNING + 1 REBUTTAL + 1 RECOMMENDATION → Score 4", MVP: "2 RECOMMENDATIONs, same type → Score 3" }
+      },
+      layer3: {
+        sentiment: "constructive",
+        sentiment_evidence: "Mentor engaged with probing questions throughout and founder responded openly to all challenges.",
+        founder_receptiveness: "high",
+        founder_receptiveness_evidence: "Founder acknowledged all mentor points and agreed to work on GTM roadmap and UI refinement."
+      }
+    },
+    {
+      id: "session_002", startup: "Basel / SugarStrings", date: "2026-06-08",
+      overall_score: 2, sentiment: "directive", founder_receptiveness: "medium",
+      layer4: {
+        parameter_analysis: {
+          GTM: {
+            problems_identified: [
+              { problem_summary: "Pitch deck lacks any articulation of channel strategy, CAC, or GTM repeatability.", severity: "critical", source_statements: ["The pitch deck's go-to-market strategy lacks strong articulation of channel strategy, customer acquisition cost, and repeatability for a seed-stage company."] },
+              { problem_summary: "No beachhead market defined — story spans five different verticals simultaneously.", severity: "critical", source_statements: ["The pitch feels like a roadmap for five companies in one, which is a red flag for VCs when presented by a small team."] }
+            ],
+            interventions: [
+              { intervention_type: "RECOMMENDATION", intervention_summary: "Focus on cold storage for agri-supply chains as the beachhead before expanding horizontally.", aligned_with_founder_strategy: "redirecting", alignment_note: "Founder was pitching all verticals simultaneously; mentor said to pick one and dominate.", source_statement: "Suggests focusing on a beachhead like cold storage solutions for agri-supply chains in rural India, with other sectors becoming subsequent expansion areas." },
+              { intervention_type: "FLAG_NO_SOLUTION", intervention_summary: "Mentor flagged the absence of channel strategy and CAC in the deck but did not prescribe a specific acquisition approach.", aligned_with_founder_strategy: "gap", alignment_note: "GTM channel strategy entirely absent from founder's pitch.", source_statement: "The pitch deck's go-to-market strategy lacks strong articulation of channel strategy, customer acquisition cost, and repeatability for a seed-stage company." }
+            ],
+            parameter_synthesis: "Mentor gave one strong redirection recommendation but also flagged a critical gap with no solution. Mixed intervention quality.",
+            synthesis_evidence: ["focus on a beachhead like cold storage", "lacks strong articulation of channel strategy"]
+          }
+        },
+        layer4_metadata: { parameters_analysed: ["GTM"], intervention_type_counts: { REBUTTAL: 0, WARNING: 0, RECOMMENDATION: 1, FLAG_NO_SOLUTION: 1 }, low_confidence_flags: ["Transcript started mid-conversation — founder pitch section not captured."] }
+      },
+      layer5: {
+        parameter_scores: { GTM: 2 },
+        score_explanations: { GTM: "1 RECOMMENDATION only (FLAG_NO_SOLUTION does not count as actionable) → Score 2" }
+      },
+      layer3: {
+        sentiment: "directive",
+        sentiment_evidence: "Mentor dominated the session with direct feedback on the pitch deck throughout.",
+        founder_receptiveness: "medium",
+        founder_receptiveness_evidence: "Founder acknowledged the deck was cluttered but continued defending multi-segment approach."
       }
     }
+  ],
+  history: { "NoveltyWealth": [ { session: 1, score: 4 } ], "Basel / SugarStrings": [ { session: 1, score: 2 } ] }
+};
 
-    function renderStats() {
-      const card = document.getElementById("stats-card");
-      if (!state.selected) {
-        card.className = "empty-card";
-        card.textContent = "Select a startup to see stats.";
-        return;
-      }
-      const info = state.data.startups[state.selected];
-      const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
-      if (!sessions.length) {
-        card.className = "empty-card";
-        card.textContent = "No sessions recorded yet.";
-        return;
-      }
-      const baseline = info.baseline_score;
-      const latest = sessions[sessions.length - 1];
-      const totalDelta = latest.score - baseline;
-      const sign = totalDelta > 0 ? "+" : "";
+/* =====================================================================
+   CONSTANTS
+   ===================================================================== */
+const API_BASE = "http://localhost:5001";
+const SCORE_COLORS = { 0: "var(--score-0)", 1: "var(--score-1)", 2: "var(--score-2)", 3: "var(--score-3)", 4: "var(--score-4)" };
+const SCORE_RGB = { 0: "239,68,68", 1: "249,115,22", 2: "234,179,8", 3: "132,204,22", 4: "34,197,94" };
+const SCORE_LABELS = { 0: "No Guidance", 1: "Flagged Only", 2: "Directional", 3: "Substantive", 4: "Rich Intervention" };
+const INTERV_COLORS = { REBUTTAL: "var(--rebuttal)", WARNING: "var(--warning)", RECOMMENDATION: "var(--recommendation)", FLAG_NO_SOLUTION: "var(--flag)" };
+const INTERV_LABELS = { REBUTTAL: "REBUTTAL", WARNING: "WARNING", RECOMMENDATION: "RECOMMENDATION", FLAG_NO_SOLUTION: "FLAG" };
+const INTERV_ORDER = ["REBUTTAL", "WARNING", "RECOMMENDATION", "FLAG_NO_SOLUTION"];
+const SENTIMENT_COLORS = { constructive: "#22c55e", tense: "#ef4444", exploratory: "#3b82f6", directive: "#f59e0b", collaborative: "#14b8a6" };
+const RECEPTIVE_COLORS = { high: "#22c55e", medium: "#f59e0b", low: "#ef4444" };
+const SEVERITY_COLORS = { critical: "#ef4444", significant: "#f59e0b", moderate: "#8a8a8a" };
+const ALIGN_COLORS = { reinforcing: "#22c55e", contradicting: "#ef4444", redirecting: "#FB723D", gap: "#8a8a8a" };
+const PARAM_LABELS = { GTM: "Go-to-Market Strategy", market_structure_and_timing: "Market Structure & Timing", MVP: "Minimum Viable Product", unit_economics_and_capital_efficiency: "Unit Economics & Capital Efficiency", team_structure: "Team Structure" };
+const PARAM_COLUMNS = [ ["GTM", "GTM"], ["MVP", "MVP"], ["Unit Econ", "unit_economics_and_capital_efficiency"], ["Market", "market_structure_and_timing"], ["Team", "team_structure"] ];
 
-      card.className = "";
-      card.innerHTML = `
-        <div class="stats-grid">
-          <div class="stat"><div class="label">Startup</div><div class="value">${state.selected}</div></div>
-          <div class="stat"><div class="label">Baseline</div><div class="value">${baseline.toFixed(2)}</div></div>
-          <div class="stat"><div class="label">Current</div><div class="value">${latest.score.toFixed(2)}</div></div>
-          <div class="stat"><div class="label">Δ from baseline</div><div class="value">${sign}${totalDelta.toFixed(2)}</div></div>
-          <div class="stat"><div class="label">Maturity</div><div class="value">${latest.maturity}</div></div>
-          <div class="stat"><div class="label">Sessions</div><div class="value">${sessions.length}</div></div>
-        </div>
-      `;
-    }
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const STATE = { sessions: [], selectedFile: null };
 
-    function renderTable() {
-      const wrap = document.getElementById("table-wrap");
-      if (!state.selected) {
-        wrap.className = "empty-card";
-        wrap.textContent = "Select a startup to see session history.";
-        return;
-      }
-      const info = state.data.startups[state.selected];
-      const sessions = (info.sessions || []).slice().sort((a, b) => a.session - b.session);
-      if (!sessions.length) {
-        wrap.className = "empty-card";
-        wrap.textContent = "No sessions yet.";
-        return;
-      }
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+function isMock(s) { return !!(s && s.layer4); }
+function sid(s) { if (s.id) return s.id; if (s._output_file) return s._output_file; const m = s.pipeline_metadata || {}; return "run_" + (m.timestamp || Math.random().toString(36).slice(2)); }
+function scoreColor(score) { return SCORE_COLORS[score] || "var(--flag)"; }
+function scoreBadge(score, mini) { return `<span class="score-badge ${mini ? "mini" : ""}" style="background:${scoreColor(score)}">${esc(score)}</span>`; }
+function scoreBlock(score) { const rgb = SCORE_RGB[score] || "138,138,138"; return `<div class="glass score-block" style="background:rgba(${rgb},0.15);color:rgb(${rgb})">${esc(score)}</div>`; }
+function score10Rgb(v) { v = Number(v); if (v >= 8) return "34,197,94"; if (v >= 6.5) return "132,204,22"; if (v >= 5) return "234,179,8"; if (v >= 3) return "249,115,22"; return "239,68,68"; }
+function scoreBlock10(v) { const rgb = score10Rgb(v); return `<div class="glass score-block sm" style="background:rgba(${rgb},0.15);color:rgb(${rgb})">${esc(v == null ? "—" : v)}</div>`; }
+function score10Badge(v) { const rgb = score10Rgb(v); return `<span class="score-badge" style="background:rgb(${rgb})">${esc(v)}</span>`; }
+function pillBadge(text, color) { return `<span class="badge outline" style="color:${color}">${esc(text)}</span>`; }
+function solidBadge(text, color) { return `<span class="badge" style="background:${color};color:#111213">${esc(text)}</span>`; }
+function quote(text, muted) { if (text == null || String(text).trim() === "") return ""; return `<blockquote class="q${muted ? " muted" : ""}">${esc(text)}</blockquote>`; }
+function fmtBytes(n) { if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(1) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
+function realStartup(s) { const m = s.pipeline_metadata || {}; if (m.startup) return m.startup; if (m.input_source) return String(m.input_source).replace(/\.[^.]+$/, ""); return "Untitled Session"; }
+function realDate(s) { const m = s.pipeline_metadata || {}; return m.timestamp ? String(m.timestamp).slice(0, 10) : "—"; }
+function realEval(s) { return ((s.layer3_classification || {}).layer3_evaluation) || {}; }
+function realActiveParams(s) { return ((s.layer2_breakdown || {}).layer2_metadata || {}).active_parameters || []; }
 
-      const rows = sessions.map(s => {
-        const dp = s.delta_from_previous;
-        const cls = dp > 0 ? "delta-pos" : dp < 0 ? "delta-neg" : "delta-zero";
-        const sign = dp > 0 ? "+" : "";
-        const dbSign = s.delta_from_baseline > 0 ? "+" : "";
-        return `<tr>
-          <td>${s.session}</td>
-          <td>${s.date}</td>
-          <td>${s.score.toFixed(2)}</td>
-          <td class="${cls}">${sign}${dp.toFixed(2)}</td>
-          <td>${dbSign}${s.delta_from_baseline.toFixed(2)}</td>
-          <td>${s.maturity}</td>
-        </tr>`;
-      }).join("");
+/* =====================================================================
+   VIEW SWITCHING
+   "landing" shows the marketing page; the app views (upload/list/detail/
+   sessions) are full-screen takeovers. No timers, no auto-hide — a view
+   stays visible until showView() is called again with a different name.
+   ===================================================================== */
+const APP_VIEWS = ["upload", "list", "detail", "sessions"];
+function showView(name) {
+  const landing = document.getElementById("view-landing");
+  if (name === "landing") {
+    APP_VIEWS.forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
+    if (landing) landing.classList.remove("hidden");
+    window.scrollTo(0, 0);
+    return;
+  }
+  if (landing) landing.classList.add("hidden");
+  APP_VIEWS.forEach(v => document.getElementById("view-" + v).classList.toggle("hidden", v !== name));
+  const cur = document.getElementById("view-" + name);
+  if (cur) { cur.style.animation = "none"; void cur.offsetHeight; cur.style.animation = ""; }
+  window.scrollTo(0, 0);
+}
+function gotoLandingSection(id) {
+  showView("landing");
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
-      wrap.className = "";
-      wrap.innerHTML = `
-        <table>
-          <thead><tr>
-            <th>Session</th><th>Date</th><th>Score</th>
-            <th>Δ Previous</th><th>Δ Baseline</th><th>Maturity</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
+/* =====================================================================
+   VIEW 0 — UPLOAD
+   ===================================================================== */
+function renderUpload() {
+  document.getElementById("view-upload").innerHTML = `
+    <div class="upload-screen">
+      <div class="upload-logo logo"><span class="c">CONQUEST</span><span class="i">IMPACT</span></div>
+      <div class="upload-card"><div id="upload-stage"></div></div>
+    </div>`;
+  renderUploadIdle();
+}
+function uploadIconSvg() { return `<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`; }
+function renderUploadIdle() {
+  const f = STATE.selectedFile;
+  const inner = f
+    ? `<div class="file-chip"><span class="fname">${esc(f.name)}</span><span class="fsize">${esc(fmtBytes(f.size))}</span><span class="fclear" title="Remove" onclick="clearFile(event)">×</span></div><div class="dz-secondary">Click to choose a different file</div>`
+    : `${uploadIconSvg()}<div class="dz-primary">Drop .txt transcript</div><div class="dz-secondary">or click to browse</div>`;
+  document.getElementById("upload-stage").innerHTML = `
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">${inner}</div>
+    <input type="file" id="fileInput" accept=".txt" class="hidden" onchange="onFilePicked(event)">
+    <div class="upload-actions">
+      <button class="btn btn-pill" id="runBtn" ${f ? "" : "disabled"} onclick="runPipeline()">Run Pipeline</button>
+      <span class="link" onclick="loadSamples()">Load sample sessions →</span>
+    </div>`;
+  wireDropzone();
+}
+function wireDropzone() {
+  const dz = document.getElementById("dropzone"); if (!dz) return;
+  ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("dragover"); }));
+  dz.addEventListener("drop", e => { const file = e.dataTransfer.files && e.dataTransfer.files[0]; if (file) acceptFile(file); });
+}
+function onFilePicked(e) { const file = e.target.files && e.target.files[0]; if (file) acceptFile(file); }
+function acceptFile(file) { if (!/\.txt$/i.test(file.name)) { alert("Please choose a .txt transcript file."); return; } STATE.selectedFile = file; renderUploadIdle(); }
+function clearFile(e) { if (e) e.stopPropagation(); STATE.selectedFile = null; renderUploadIdle(); }
 
-    function renderAll() {
-      renderSelector();
-      renderChart();
-      renderStats();
-      renderTable();
-    }
+const PIPE_STEPS = ["Layer 2: Summarizing transcript", "Layer 3: Classifying session", "Layer 4: Mapping interventions", "Layer 5: Calculating scores"];
+function renderTracker(activeIdx, doneCount) {
+  const steps = PIPE_STEPS.map((label, i) => {
+    let cls = "", ind = "◎";
+    if (i < doneCount) { cls = "done"; ind = "✓"; } else if (i === activeIdx) { cls = "active"; ind = ""; }
+    return `<div class="track-step ${cls}"><span class="track-ind">${ind}</span><span class="track-label">${esc(label)}</span></div>`;
+  }).join("");
+  document.getElementById("upload-stage").innerHTML = `<div class="glass track-card">${steps}</div>`;
+}
+async function runPipeline() {
+  const file = STATE.selectedFile; if (!file) return;
+  let active = 0, done = 0; renderTracker(active, done);
+  const timer = setInterval(() => { if (done < PIPE_STEPS.length - 1) { done++; active = done; renderTracker(active, done); } }, 1100);
+  try {
+    const fd = new FormData(); fd.append("transcript", file); fd.append("startup", file.name.replace(/\.[^.]+$/, ""));
+    const res = await fetch(API_BASE + "/api/run-pipeline", { method: "POST", body: fd });
+    clearInterval(timer);
+    if (!res.ok) { let msg = "Pipeline returned an error."; try { const j = await res.json(); msg = j.error || msg; } catch (_) {} renderRunError(msg, false); return; }
+    const data = await res.json();
+    renderTracker(-1, PIPE_STEPS.length);
+    STATE.selectedFile = null;
+    STATE.sessions = STATE.sessions.filter(s => sid(s) !== sid(data));
+    STATE.sessions.unshift(data);
+    /* new session is now at the top of STATE.sessions — show the Sessions view */
+    setTimeout(() => { renderSessions(); showView("sessions"); }, 450);
+  } catch (err) { clearInterval(timer); renderRunError(null, true); }
+}
+function renderRunError(message, isConnError) {
+  const body = isConnError
+    ? `<h4>Pipeline server not running.</h4><p>Start it with:</p><code>python3 api_server.py</code><p style="margin-top:14px"><span class="link" onclick="loadSamples()" style="color:var(--orange)">Load sample data instead →</span></p>`
+    : `<h4>Pipeline error</h4><p>${esc(message || "Something went wrong.")}</p><p style="margin-top:14px"><span class="link" onclick="renderUploadIdle()" style="color:var(--orange)">← Try another transcript</span></p>`;
+  document.getElementById("upload-stage").innerHTML = `<div class="error-box">${body}</div>`;
+}
+function loadSamples() {
+  SAMPLE_DATA.sessions.forEach(s => { if (!STATE.sessions.some(x => sid(x) === sid(s))) STATE.sessions.push(s); });
+  renderList(); showView("list");
+}
+function goUpload() { renderUpload(); showView("upload"); }
 
-    // -------------------------------------------------------------------
-    // Banner helper
-    // -------------------------------------------------------------------
-    function showBanner(message) {
-      const b = document.getElementById("banner");
-      b.textContent = message;
-      b.classList.add("visible");
-    }
-    function clearBanner() {
-      document.getElementById("banner").classList.remove("visible");
-    }
+/* =====================================================================
+   VIEW 1 — LIST
+   ===================================================================== */
+function listRow(s) {
+  const id = sid(s);
+  if (isMock(s)) {
+    const scores = s.layer5.parameter_scores || {};
+    const cells = PARAM_COLUMNS.map(([, key]) => key in scores ? `<td class="num">${scoreBadge(scores[key], true)}</td>` : `<td class="num cell-dash">—</td>`).join("");
+    return `<tr onclick="openDetail('${esc(id)}')"><td><div class="startup-name">${esc(s.startup)}</div></td><td class="cell-date">${esc(s.date)}</td><td class="num">${scoreBadge(s.overall_score)}</td>${cells}<td>${solidBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}</td><td>${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</td></tr>`;
+  }
+  const ev = realEval(s), overall = ev.overall_progress_metric, active = realActiveParams(s);
+  const cells = PARAM_COLUMNS.map(([, key]) => active.includes(key) ? `<td class="num"><span style="color:var(--orange);font-weight:700">✓</span></td>` : `<td class="num cell-dash">—</td>`).join("");
+  return `<tr onclick="openDetail('${esc(id)}')"><td><div class="startup-name">${esc(realStartup(s))}</div></td><td class="cell-date">${esc(realDate(s))}</td><td class="num">${overall == null ? '<span class="cell-dash">—</span>' : score10Badge(overall)}</td>${cells}<td class="cell-dash">—</td><td class="cell-dash">—</td></tr>`;
+}
+function renderList() {
+  const rows = STATE.sessions.map(listRow).join("");
+  const n = STATE.sessions.length;
+  const dates = STATE.sessions.map(s => isMock(s) ? s.date : realDate(s)).filter(d => d && d !== "—").sort();
+  const range = dates.length ? (dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} → ${dates[dates.length - 1]}`) : "—";
+  const mockScores = STATE.sessions.filter(isMock).map(s => s.overall_score);
+  const avg = mockScores.length ? (mockScores.reduce((a, b) => a + b, 0) / mockScores.length).toFixed(1) : "—";
+  document.getElementById("view-list").innerHTML = `
+    <div class="topbar">
+      <div class="logo"><span class="c">CONQUEST</span><span class="i">IMPACT</span></div>
+      <button class="btn-outline" onclick="goUpload()">Upload Transcript</button>
+    </div>
+    <table>
+      <thead><tr><th>Startup</th><th>Date</th><th class="num">Score</th><th class="num">GTM</th><th class="num">MVP</th><th class="num">Unit Econ</th><th class="num">Market</th><th class="num">Team</th><th>Sentiment</th><th>Receptiveness</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="10" class="empty-note" style="padding:24px 14px">No sessions loaded.</td></tr>`}</tbody>
+    </table>
+    <div class="list-stats"><span class="stat"><b>${n}</b> session${n === 1 ? "" : "s"}</span><span class="stat">Range <b>${esc(range)}</b></span><span class="stat">Avg demo score <b>${esc(avg)}</b></span></div>`;
+}
 
-    // -------------------------------------------------------------------
-    // Data loading
-    // -------------------------------------------------------------------
-    async function loadScoresFile() {
-      clearBanner();
-      try {
-        const res = await fetch("../data/scores.json", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        state.data = {
-          startups: json.startups || {},
-          cohort_averages: json.cohort_averages || [],
-        };
-        if (!Object.keys(state.data.startups).length) {
-          showBanner("scores.json loaded but contains no startups yet. Run the pipeline or click Load Sample Data.");
-        }
-        renderAll();
-      } catch (err) {
-        showBanner(
-          "Could not load ../data/scores.json (" + err.message + "). " +
-          "If you opened this file directly, run `python3 -m http.server` from the repo root and visit http://localhost:8000/dashboard/index.html — or click Load Sample Data."
-        );
-      }
-    }
+/* =====================================================================
+   VIEW 2 — DETAIL
+   ===================================================================== */
+let chartInstance = null;
+function openDetail(id) {
+  const s = STATE.sessions.find(x => sid(x) === id); if (!s) return;
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  if (isMock(s)) renderMockDetail(s); else renderRealDetail(s);
+  showView("detail");
+  if (isMock(s)) renderChart(s);
+}
+function backToList() { if (chartInstance) { chartInstance.destroy(); chartInstance = null; } renderSessions(); showView("sessions"); }
 
-    function loadSampleData() {
-      clearBanner();
-      const today = new Date().toISOString().slice(0, 10);
-      const buildSessions = (scores) => {
-        let baseline = scores[0];
-        return scores.map((score, i) => {
-          const prev = i === 0 ? score : scores[i - 1];
-          return {
-            session: i + 1,
-            date: today,
-            score: score,
-            delta_from_baseline: +(score - baseline).toFixed(2),
-            delta_from_previous: i === 0 ? 0 : +(score - prev).toFixed(2),
-            maturity: maturityForScore(score),
-            run_file: `sample_${i + 1}.json`,
-          };
-        });
-      };
+function renderParamCard(session, param, open) {
+  const analysis = session.layer4.parameter_analysis[param] || {};
+  const score = session.layer5.parameter_scores[param];
+  const explain = session.layer5.score_explanations[param] || "";
+  const fullLabel = PARAM_LABELS[param] || "";
 
-      const startups = {
-        startup_a: { baseline_score: 3.5, sessions: buildSessions([3.5, 5.1, 6.8, 7.9]) },
-        startup_b: { baseline_score: 4.8, sessions: buildSessions([4.8, 5.0, 5.4, 5.7]) },
-        startup_c: { baseline_score: 4.2, sessions: buildSessions([4.2, 6.0, 7.5, 8.9]) },
-      };
+  const problems = (analysis.problems_identified || []).map(pr => {
+    const srcs = (pr.source_statements || []).map(st => quote(st)).join("");
+    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#8a8a8a")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
+  }).join("");
 
-      const bySession = {};
-      Object.values(startups).forEach(s => {
-        s.sessions.forEach(e => {
-          (bySession[e.session] ||= { scores: [], deltas: [] }).scores.push(e.score);
-          bySession[e.session].deltas.push(e.delta_from_baseline);
-        });
-      });
-      const cohort_averages = Object.keys(bySession).map(Number).sort((a, b) => a - b).map(session => {
-        const b = bySession[session];
-        return {
-          session,
-          avg_score: +(b.scores.reduce((a, c) => a + c, 0) / b.scores.length).toFixed(2),
-          avg_delta: +(b.deltas.reduce((a, c) => a + c, 0) / b.deltas.length).toFixed(2),
-        };
-      });
+  const ivList = analysis.interventions || [];
+  const ivTotal = ivList.length;
+  const interventions = ivList.map((iv, i) => {
+    const c = INTERV_COLORS[iv.intervention_type] || "#8a8a8a";
+    const ac = ALIGN_COLORS[iv.aligned_with_founder_strategy] || "#8a8a8a";
+    return `<div class="glass interv">
+      <div class="interv-cite">${esc(param)} · Intervention ${i + 1} of ${ivTotal}</div>
+      <div class="interv-top">${solidBadge(INTERV_LABELS[iv.intervention_type] || iv.intervention_type, c)}${pillBadge(iv.aligned_with_founder_strategy, ac)}</div>
+      <div class="interv-summary">${esc(iv.intervention_summary)}</div>
+      <div class="interv-note"><b>Alignment:</b> ${esc(iv.alignment_note)}</div>
+      ${quote(iv.source_statement)}
+    </div>`;
+  }).join("");
 
-      state.data = { startups, cohort_averages };
-      state.selected = "startup_a";
-      renderAll();
-      document.getElementById("startup-select").value = "startup_a";
-    }
+  return `<div class="param-card ${open ? "open" : ""}" id="param-card-${esc(param)}">
+    <div class="param-head" onclick="this.parentNode.classList.toggle('open')">
+      ${scoreBadge(score)}
+      <div class="param-name-wrap"><span class="param-name">${esc(param)}</span>${fullLabel ? `<span class="param-fulllabel">${esc(fullLabel)}</span>` : ""}</div>
+      <span class="param-explain">${esc(explain)}</span>
+      <span class="param-arrow">▶</span>
+    </div>
+    <div class="param-body"><div class="pb-inner"><div class="pb-pad">
+      <div class="eyebrow sub-eyebrow">Problems Identified</div>
+      ${problems || '<div class="empty-note">None recorded.</div>'}
+      <div class="eyebrow sub-eyebrow">Mentor Interventions</div>
+      ${interventions || '<div class="empty-note">None recorded.</div>'}
+      <div class="synthesis"><div class="eyebrow orange">Mentor Synthesis</div><div class="synthesis-text">${esc(analysis.parameter_synthesis || "")}</div></div>
+    </div></div></div>
+  </div>`;
+}
+function openParamCard(param) { const card = document.getElementById("param-card-" + param); if (!card) return; card.classList.add("open"); card.scrollIntoView({ behavior: "smooth", block: "start" }); }
 
-    // -------------------------------------------------------------------
-    // Wire up controls
-    // -------------------------------------------------------------------
-    document.getElementById("btn-reload").addEventListener("click", loadScoresFile);
-    document.getElementById("btn-sample").addEventListener("click", loadSampleData);
-    document.getElementById("startup-select").addEventListener("change", (e) => {
-      state.selected = e.target.value || null;
-      renderChart();
-      renderStats();
-      renderTable();
-    });
+function renderMockDetail(s) {
+  const counts = s.layer4.layer4_metadata.intervention_type_counts;
+  const intervBar = INTERV_ORDER.map(t => { const c = INTERV_COLORS[t]; return `<div class="glass interv-chip" style="border-left-color:${c}"><span class="ic-count" style="color:${c}">${counts[t] || 0}</span><span class="ic-label">${INTERV_LABELS[t]}</span></div>`; }).join("");
+  const params = s.layer4.layer4_metadata.parameters_analysed;
+  const cards = params.map((p, i) => renderParamCard(s, p, i === 0)).join("");
+  const lowConf = s.layer4.layer4_metadata.low_confidence_flags || [];
+  const lowConfHtml = lowConf.length ? `<div style="margin-top:16px;color:var(--warning);font-size:12px">⚠ ${lowConf.map(esc).join(" · ")}</div>` : "";
+  const l3 = s.layer3 || {};
+  const evidence = [quote(l3.sentiment_evidence), quote(l3.founder_receptiveness_evidence)].filter(Boolean).map(q => `<div class="evidence">${q}</div>`).join("");
+  const chips = params.map(p => `<div class="glass topic-chip" onclick="openParamCard('${esc(p)}')"><span>${esc(p)}</span>${scoreBadge(s.layer5.parameter_scores[p], true)}</div>`).join("");
+  document.getElementById("view-detail").innerHTML = `
+    <button class="btn-back" onclick="backToList()">← Sessions</button>
+    <div class="glass detail-header glow">
+      <div class="dh-top">
+        <div><div class="dh-startup">${esc(s.startup)}</div><div class="dh-date">${esc(s.date)} · ${esc(s.id)}</div></div>
+        <div class="dh-meta">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+      </div>
+      ${evidence}
+      <div class="score-row">
+        ${scoreBlock(s.overall_score)}
+        <div><div class="score-label-k">Overall Score</div><div class="score-label-v">${esc(SCORE_LABELS[s.overall_score] || "")}</div></div>
+        <div class="topic-chips">${chips}</div>
+      </div>
+      <div class="interv-bar">${intervBar}</div>${lowConfHtml}
+    </div>
+    <div class="params">${cards}</div>
+    <div class="glass chart-card"><div class="eyebrow">Score Progression</div><div class="chart-holder"><canvas id="progressChart"></canvas></div><div id="chartNote" class="chart-note"></div></div>`;
+}
 
-    // Initial load
-    loadScoresFile();
-  </script>
+function renderRealDetail(s) {
+  const ev = realEval(s), startup = realStartup(s), date = realDate(s), overall = ev.overall_progress_metric;
+  const me = ev.mentor_engagement || {}, fp = ev.founder_preparedness || {};
+  const active = realActiveParams(s), discussion = (s.layer2_breakdown || {}).discussion || {}, pitch = (s.layer2_breakdown || {}).pitch_metrics || {}, nextSteps = ev.next_steps_for_founder || [];
+  const chips = active.map(p => `<div class="glass topic-chip" onclick="openParamCard('${esc(p)}')"><span>${esc(p)}</span></div>`).join("");
+  const cards = active.map(p => {
+    const stmts = discussion[p]; if (!Array.isArray(stmts) || !stmts.length) return "";
+    const body = stmts.map(st => { const isMentor = (st.speaker || "").toLowerCase() === "mentor"; return `<div class="stmt">${quote(st.statement, !isMentor)}</div>`; }).join("");
+    const pm = pitch[p];
+    const pitchHtml = (pm != null && String(pm).trim() !== "") ? `<div class="eyebrow sub-eyebrow">Pitch Metrics</div><div class="empty-note" style="font-style:normal;color:var(--text-dim)">${esc(typeof pm === "object" ? JSON.stringify(pm) : pm)}</div>` : "";
+    return `<div class="param-card open" id="param-card-${esc(p)}"><div class="param-head" onclick="this.parentNode.classList.toggle('open')"><div class="param-name-wrap"><span class="param-name">${esc(p)}</span>${PARAM_LABELS[p] ? `<span class="param-fulllabel">${esc(PARAM_LABELS[p])}</span>` : ""}</div><span class="param-explain">${stmts.length} statement${stmts.length === 1 ? "" : "s"}</span><span class="param-arrow">▶</span></div><div class="param-body"><div class="pb-inner"><div class="pb-pad">${pitchHtml}<div class="eyebrow sub-eyebrow">Discussion</div>${body}</div></div></div></div>`;
+  }).join("");
+  const nextHtml = nextSteps.length ? `<ul class="next-steps">${nextSteps.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<div class="empty-note">No next steps recorded.</div>`;
+  document.getElementById("view-detail").innerHTML = `
+    <button class="btn-back" onclick="backToList()">← Sessions</button>
+    <div class="glass detail-header glow">
+      <div class="dh-top"><div><div class="dh-startup">${esc(startup)}</div><div class="dh-date">${esc(date)} · pipeline run</div></div><div class="dh-meta">${pillBadge("Live pipeline output", "var(--orange)")}</div></div>
+      <div class="score-row">
+        ${scoreBlock10(overall)}
+        <div><div class="score-label-k">Overall Progress Metric</div><div class="score-label-v">${esc(overall == null ? "—" : overall + " / 10")}</div></div>
+        <div class="topic-chips">${chips}</div>
+      </div>
+      <div class="dual-stat">
+        <div class="glass stat-block"><div class="eyebrow">Mentor Engagement</div><div class="sb-score" style="color:rgb(${score10Rgb(me.score)})">${esc(me.score == null ? "—" : me.score)}<span style="font-size:15px;color:var(--text-muted)"> / 10</span></div><div class="sb-obs">${esc(me.observation || "")}</div></div>
+        <div class="glass stat-block"><div class="eyebrow">Founder Preparedness</div><div class="sb-score" style="color:rgb(${score10Rgb(fp.score)})">${esc(fp.score == null ? "—" : fp.score)}<span style="font-size:15px;color:var(--text-muted)"> / 10</span></div><div class="sb-obs">${esc(fp.observation || "")}</div></div>
+      </div>
+    </div>
+    <div class="params">${cards || '<div class="empty-note">No active parameters were extracted.</div>'}</div>
+    <div class="glass chart-card" style="margin-top:22px"><div class="eyebrow">Next Steps for Founder</div>${nextHtml}</div>`;
+}
+
+function renderChart(session) {
+  const history = SAMPLE_DATA.history[session.startup] || [{ session: 1, score: session.overall_score }];
+  const note = document.getElementById("chartNote");
+  note.textContent = history.length <= 1 ? "Only one session recorded — the trend line will populate as more sessions are analysed." : "";
+  const ctx = document.getElementById("progressChart").getContext("2d");
+  if (chartInstance) chartInstance.destroy();
+  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: session.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" }, title: { display: true, text: "Overall Score", color: "rgba(255,251,249,0.35)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+  });
+}
+
+/* =====================================================================
+   LANDING PAGE — interactive session analysis window (Section 4)
+   ===================================================================== */
+const WIN = { sessionId: SAMPLE_DATA.sessions[0].id, param: null };
+const NAV_LINKS = ["Sessions", "Pipeline", "Scoring", "Upload"];
+const MENU_ITEMS = ["Sessions", "Pipeline", "Scoring", "Parameters", "Export", "Help"];
+const PARAM_DOTS = [["GTM", "#FB723D"], ["MVP", "#FFBF99"], ["Market", "#f59e0b"], ["Unit Econ", "#84cc16"], ["Team", "#6b7280"]];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function monthDay(d) { const p = String(d).split("-").map(Number); return MONTHS[p[1] - 1] + " " + p[2]; }
+function winSession() { return SAMPLE_DATA.sessions.find(s => s.id === WIN.sessionId) || SAMPLE_DATA.sessions[0]; }
+function winParams(s) { return s.layer4.layer4_metadata.parameters_analysed; }
+function winActiveParam(s) { const ps = winParams(s); return (WIN.param && ps.includes(WIN.param)) ? WIN.param : ps[0]; }
+
+/* --- small inline icons --- */
+const ICO = {
+  upload: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+  search: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  expand: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+  archive: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+  trash: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  more: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`,
+  target: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`
+};
+const APPLE_LOGO = `<svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>`;
+
+const NAV_ACTIONS = {
+  "Sessions": "showSessions()",
+  "Pipeline": "gotoLandingSection('pipeline-section')",
+  "Scoring": "gotoLandingSection('session-window')",
+  "Upload": "goUpload()"
+};
+function renderNavAndMenu() {
+  document.getElementById("navLinks").innerHTML = NAV_LINKS
+    .map((l, i) => `<span class="nav-link anim a-up" style="animation-delay:${(0.1 + i * 0.05).toFixed(2)}s" onclick="${NAV_ACTIONS[l] || ''}">${l}</span>`).join("");
+  /* Section 3 (macOS menu bar) removed — guard against the absent element */
+  const menubarLeft = document.getElementById("menubarLeft");
+  if (menubarLeft) {
+    const items = MENU_ITEMS.map((m, i) => {
+      const hide = i > 3 ? " mb-hide-md" : (i > 2 ? " mb-hide-sm" : "");
+      return `<span class="mb-item${hide}">${m}</span>`;
+    }).join("");
+    menubarLeft.innerHTML =
+      `<span style="display:inline-flex">${APPLE_LOGO}</span><span class="mb-brand">Impact</span>${items}`;
+  }
+}
+
+function renderWindow() {
+  const s = winSession();
+  const param = winActiveParam(s);
+
+  /* sidebar — session rows */
+  const sessionRows = SAMPLE_DATA.sessions.map(sess => {
+    const active = sess.id === WIN.sessionId;
+    return `<div class="win-navitem ${active ? "active" : ""}" onclick="selectSession('${esc(sess.id)}')">
+      <span class="dot" style="background:${active ? "#FB723D" : "#6b7280"}"></span>
+      <span class="nm">${esc(sess.startup)}</span>
+      ${scoreBadge(sess.overall_score, true)}
+      <span class="dt">${monthDay(sess.date)}</span>
+    </div>`;
+  }).join("");
+  const paramDots = PARAM_DOTS.map(([nm, c]) =>
+    `<div class="win-lbl"><span class="dot" style="background:${c}"></span>${esc(nm)}</div>`).join("");
+  const sidebar = `<div class="win-sidebar">
+    <button class="win-compose" onclick="pickTranscript()">${ICO.upload} Upload Transcript</button>
+    ${sessionRows}
+    <div class="win-section-title">Parameters</div>
+    ${paramDots}
+  </div>`;
+
+  /* middle — parameter rows for active session */
+  const rows = winParams(s).map(p => {
+    const a = s.layer4.parameter_analysis[p] || {};
+    const score = s.layer5.parameter_scores[p];
+    const nInt = (a.interventions || []).length;
+    const nProb = (a.problems_identified || []).length;
+    const active = p === param;
+    return `<div class="win-row ${active ? "active" : ""}" onclick="selectParam('${esc(p)}')">
+      <span class="row-dot" style="background:#FB723D"></span>
+      <div class="row-main">
+        <div class="row-title">${esc(PARAM_LABELS[p] || p)}</div>
+        <div class="row-sub">Score ${esc(score)} · ${nInt} intervention${nInt === 1 ? "" : "s"}</div>
+        <div class="row-meta">${nProb} problem${nProb === 1 ? "" : "s"}</div>
+      </div>
+      ${scoreBadge(score, true)}
+    </div>`;
+  }).join("");
+  const list = `<div class="win-list">
+    <div class="win-search">${ICO.search}<input placeholder="Search sessions..." readonly></div>
+    ${rows}
+  </div>`;
+
+  document.getElementById("session-window-body").innerHTML = sidebar + list + renderWinDetail(s, param);
+  renderWinChart(s);
+}
+
+function renderWinDetail(s, param) {
+  const a = s.layer4.parameter_analysis[param] || {};
+  const score = s.layer5.parameter_scores[param];
+  const explain = s.layer5.score_explanations[param] || "";
+  const counts = s.layer4.layer4_metadata.intervention_type_counts;
+  const fullLabel = PARAM_LABELS[param] || "";
+
+  const intervBar = INTERV_ORDER.map(t => {
+    const c = INTERV_COLORS[t];
+    return `<div class="glass interv-chip" style="border-left-color:${c}"><span class="ic-count" style="color:${c}">${counts[t] || 0}</span><span class="ic-label">${INTERV_LABELS[t]}</span></div>`;
+  }).join("");
+
+  const problems = (a.problems_identified || []).map(pr => {
+    const srcs = (pr.source_statements || []).map(st => quote(st, true)).join("");
+    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#8a8a8a")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
+  }).join("") || '<div class="empty-note">None recorded.</div>';
+
+  const ivList = a.interventions || [];
+  const interventions = ivList.map((iv, i) => {
+    const c = INTERV_COLORS[iv.intervention_type] || "#8a8a8a";
+    return `<div class="glass interv">
+      <div class="interv-cite">${esc(param)} · Intervention ${i + 1} of ${ivList.length}</div>
+      <div class="interv-top">${solidBadge(INTERV_LABELS[iv.intervention_type] || iv.intervention_type, c)}</div>
+      <div class="interv-summary">${esc(iv.intervention_summary)}</div>
+      ${quote(iv.source_statement)}
+    </div>`;
+  }).join("") || '<div class="empty-note">None recorded.</div>';
+
+  return `<div class="win-detail">
+    <div class="win-toolbar">
+      <button class="win-tool" title="Expand">${ICO.expand}</button>
+      <button class="win-tool" title="Archive">${ICO.archive}</button>
+      <button class="win-tool" title="Trash">${ICO.trash}</button>
+      <button class="win-tool spacer" title="More">${ICO.more}</button>
+    </div>
+    <div class="win-dhead">
+      <div class="score-bubble">${esc(s.overall_score)}</div>
+      <div>
+        <div class="dh-name">${esc(s.startup)}</div>
+        <div class="dh-sub">${esc(SCORE_LABELS[s.overall_score] || "")} · ${monthDay(s.date)}</div>
+        <div class="dh-pills">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+      </div>
+    </div>
+    <div class="win-dbody">
+      <div class="interv-bar" style="margin-top:0">${intervBar}</div>
+      <div class="glass summary-card">
+        <div class="sc-head">${ICO.target} ${esc(param)} — ${esc(fullLabel)}</div>
+        <div class="sc-text">${esc(explain)}</div>
+      </div>
+      <div class="eyebrow sub-eyebrow">Problems Identified</div>
+      ${problems}
+      <div class="eyebrow sub-eyebrow">Mentor Interventions</div>
+      ${interventions}
+      <div class="synthesis"><div class="eyebrow orange">Mentor Synthesis</div><div class="synthesis-text">${esc(a.parameter_synthesis || "")}</div></div>
+      <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Score Progression</div><div class="chart-holder" style="height:200px"><canvas id="winChart"></canvas></div></div>
+    </div>
+  </div>`;
+}
+
+let winChartInstance = null;
+function renderWinChart(s) {
+  const canvas = document.getElementById("winChart");
+  if (!canvas) return;
+  if (winChartInstance) { winChartInstance.destroy(); winChartInstance = null; }
+  const history = SAMPLE_DATA.history[s.startup] || [{ session: 1, score: s.overall_score }];
+  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  winChartInstance = new Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+  });
+}
+
+function selectSession(id) { WIN.sessionId = id; WIN.param = null; renderWindow(); }
+function selectParam(p) { WIN.param = p; renderWindow(); }
+
+/* --- upload wiring (keeps localhost:5001 API integration) --- */
+function pickTranscript() { document.getElementById("landingFile").click(); }
+async function onLandingFile(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (!/\.txt$/i.test(file.name)) { alert("Please choose a .txt transcript file."); return; }
+  const fd = new FormData();
+  fd.append("transcript", file);
+  fd.append("startup", file.name.replace(/\.[^.]+$/, ""));
+  try {
+    const res = await fetch(API_BASE + "/api/run-pipeline", { method: "POST", body: fd });
+    if (!res.ok) { let msg = "Pipeline returned an error."; try { const j = await res.json(); msg = j.error || msg; } catch (_) {} alert("Pipeline error: " + msg); return; }
+    const data = await res.json();
+    STATE.sessions = STATE.sessions.filter(s => sid(s) !== sid(data));
+    STATE.sessions.unshift(data);
+    renderSessions();
+    showView("sessions");
+  } catch (err) {
+    alert("Pipeline server not running.\nStart it with:  python3 api_server.py");
+  }
+}
+
+/* =====================================================================
+   VIEW 3 — SESSIONS
+   Full-detail liquid-glass card per session in STATE.sessions. New
+   sessions pushed by runPipeline() appear automatically at the top.
+   Left column = summary + "view full analysis"; right column = the
+   collapsible parameter cards (full content) + score chart.
+   ===================================================================== */
+let sessionViewCharts = {};
+
+function showSessions() {
+  if (STATE.sessions.length === 0) {
+    SAMPLE_DATA.sessions.forEach(s => { if (!STATE.sessions.some(x => sid(x) === sid(s))) STATE.sessions.push(s); });
+  }
+  renderSessions();
+  showView("sessions");
+}
+
+function renderSessions() {
+  Object.values(sessionViewCharts).forEach(c => { try { c.destroy(); } catch (e) {} });
+  sessionViewCharts = {};
+  const cards = STATE.sessions.map(renderSessionCard).join("")
+    || `<div class="empty-note" style="padding:24px 0">No sessions yet. Upload a transcript or load the sample sessions.</div>`;
+  document.getElementById("view-sessions").innerHTML = `
+    <div class="sessions-header">
+      <div class="eyebrow orange">Sessions</div>
+      <button class="btn btn-pill" onclick="goUpload()">Upload Transcript</button>
+    </div>
+    <div class="sessions-grid">${cards}</div>`;
+  STATE.sessions.forEach(s => { if (isMock(s)) renderSessionCardChart(s); });
+}
+
+function renderSessionCard(s) { return isMock(s) ? renderSessionCardMock(s) : renderSessionCardReal(s); }
+
+function renderSessionCardMock(s) {
+  const id = sid(s);
+  const counts = s.layer4.layer4_metadata.intervention_type_counts;
+  const intervBar = INTERV_ORDER.map(t => {
+    const c = INTERV_COLORS[t];
+    return `<div class="glass interv-chip" style="border-left-color:${c}"><span class="ic-count" style="color:${c}">${counts[t] || 0}</span><span class="ic-label">${INTERV_LABELS[t]}</span></div>`;
+  }).join("");
+  const params = s.layer4.layer4_metadata.parameters_analysed;
+  const cards = params.map((p, i) => renderParamCard(s, p, i === 0)).join("");
+  return `<div class="glass session-card"><div class="session-card-inner">
+    <div class="sv-left">
+      <div class="sv-name">${esc(s.startup)}</div>
+      <div class="sv-date">${esc(s.date)} · ${esc(s.id)}</div>
+      <div class="score-row" style="margin-top:18px;padding-top:0;border-top:none">
+        ${scoreBlock(s.overall_score)}
+        <div><div class="score-label-k">Overall Score</div><div class="score-label-v">${esc(SCORE_LABELS[s.overall_score] || "")}</div></div>
+      </div>
+      <div class="interv-bar">${intervBar}</div>
+      <div class="dh-meta" style="margin-top:18px">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+      <div class="sv-link" onclick="openDetail('${esc(id)}')">View full analysis →</div>
+    </div>
+    <div class="sv-right">
+      <div class="params">${cards}</div>
+      <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Score Progression</div><div class="chart-holder" style="height:220px"><canvas id="svchart-${esc(id)}"></canvas></div></div>
+    </div>
+  </div></div>`;
+}
+
+function renderSessionCardReal(s) {
+  const id = sid(s);
+  const ev = realEval(s), startup = realStartup(s), date = realDate(s), overall = ev.overall_progress_metric;
+  const me = ev.mentor_engagement || {}, fp = ev.founder_preparedness || {};
+  const active = realActiveParams(s), discussion = (s.layer2_breakdown || {}).discussion || {}, nextSteps = ev.next_steps_for_founder || [];
+  const cards = active.map((p, idx) => {
+    const stmts = discussion[p]; if (!Array.isArray(stmts) || !stmts.length) return "";
+    const body = stmts.map(st => { const isMentor = (st.speaker || "").toLowerCase() === "mentor"; return `<div class="stmt">${quote(st.statement, !isMentor)}</div>`; }).join("");
+    return `<div class="param-card ${idx === 0 ? "open" : ""}"><div class="param-head" onclick="this.parentNode.classList.toggle('open')"><div class="param-name-wrap"><span class="param-name">${esc(p)}</span>${PARAM_LABELS[p] ? `<span class="param-fulllabel">${esc(PARAM_LABELS[p])}</span>` : ""}</div><span class="param-explain">${stmts.length} statement${stmts.length === 1 ? "" : "s"}</span><span class="param-arrow">▶</span></div><div class="param-body"><div class="pb-inner"><div class="pb-pad"><div class="eyebrow sub-eyebrow">Discussion</div>${body}</div></div></div></div>`;
+  }).join("");
+  const nextHtml = nextSteps.length ? `<ul class="next-steps">${nextSteps.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<div class="empty-note">No next steps recorded.</div>`;
+  return `<div class="glass session-card"><div class="session-card-inner">
+    <div class="sv-left">
+      <div class="sv-name">${esc(startup)}</div>
+      <div class="sv-date">${esc(date)} · pipeline run</div>
+      <div class="score-row" style="margin-top:18px;padding-top:0;border-top:none">
+        ${scoreBlock10(overall)}
+        <div><div class="score-label-k">Overall Progress</div><div class="score-label-v">${esc(overall == null ? "—" : overall + " / 10")}</div></div>
+      </div>
+      <div class="dual-stat" style="margin-top:18px;padding-top:0;border-top:none">
+        <div class="glass stat-block"><div class="eyebrow">Mentor Engagement</div><div class="sb-score" style="color:rgb(${score10Rgb(me.score)})">${esc(me.score == null ? "—" : me.score)}<span style="font-size:15px;color:var(--text-muted)"> / 10</span></div><div class="sb-obs">${esc(me.observation || "")}</div></div>
+        <div class="glass stat-block"><div class="eyebrow">Founder Preparedness</div><div class="sb-score" style="color:rgb(${score10Rgb(fp.score)})">${esc(fp.score == null ? "—" : fp.score)}<span style="font-size:15px;color:var(--text-muted)"> / 10</span></div><div class="sb-obs">${esc(fp.observation || "")}</div></div>
+      </div>
+      <div class="sv-link" onclick="openDetail('${esc(id)}')">View full analysis →</div>
+    </div>
+    <div class="sv-right">
+      <div class="params">${cards || '<div class="empty-note">No active parameters were extracted.</div>'}</div>
+      <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Next Steps for Founder</div>${nextHtml}</div>
+    </div>
+  </div></div>`;
+}
+
+function renderSessionCardChart(s) {
+  const id = sid(s);
+  const canvas = document.getElementById("svchart-" + id);
+  if (!canvas) return;
+  const history = SAMPLE_DATA.history[s.startup] || [{ session: 1, score: s.overall_score }];
+  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  sessionViewCharts[id] = new Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+  });
+}
+
+/* ===== init ===== */
+renderNavAndMenu();
+renderWindow();
+</script>
 </body>
 </html>
