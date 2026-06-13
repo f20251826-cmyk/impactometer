@@ -125,7 +125,12 @@ def record_score(startup_id: str, session_number: int, output_json_path: str) ->
         run_output = json.load(f)
 
     layer3 = run_output.get("layer3_classification", {}) or {}
-    current_score = float(layer3.get("doc_quality_score", 0.0))
+    eval_block = layer3.get("layer3_evaluation", {}) or {}
+    current_score = float(
+        layer3.get("doc_quality_score")
+        or eval_block.get("overall_progress_metric")
+        or 0.0
+    )
 
     store = _load_store()
     startups = store["startups"]

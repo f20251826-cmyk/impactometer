@@ -9,8 +9,9 @@ at each step:
 
   Layer 1 → Transcription (Deepgram Nova-3) -> Save Doc + Supabase Record
   Layer 2 → Talking Points Summarizer (Gemini 2.5 Flash) -> Save Doc + Supabase Update
-  Layer 3 → Call Classification & Quality Score (Gemini 2.5 Flash) -> Save Doc + Supabase final update
-  Layer 4 → Judge Agent (Placeholder)
+  Layer 3 → Session Evaluation (Gemini 2.5 Flash) -> Save Doc + Supabase update
+  Layer 4 → Mentor Intervention Analysis (Gemini 2.5 Flash)
+  Layer 5 → Numerical Solution Quality Scoring (Pure Python, no API)
 
 All outputs between layers are passed as Python dicts/JSON so they
 are easy to extend, inspect, and serialise.
@@ -56,6 +57,8 @@ from db_helpers import (
 from layer1_transcription import transcribe_audio_file, transcribe_live
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
+from layer4_intervention import analyze_interventions, print_intervention_analysis
+from layer5_scoring import compute_solution_scores, print_solution_scores
 from score_tracker import record_score
 
 
@@ -157,7 +160,7 @@ async def run_pipeline(
     # LAYER 1 — Transcription
     # -----------------------------------------------------------------------
     print(f"\n{'─'*60}")
-    print("  LAYER 1 / 4 — Transcription (Deepgram Nova-3)")
+    print("  LAYER 1 / 5 — Transcription (Deepgram Nova-3)")
     print(f"{'─'*60}")
 
     if demo:
@@ -217,7 +220,7 @@ async def run_pipeline(
     # LAYER 2 — Talking Points Summarizer (UPDATED FOR CONQUEST 2026)
     # -----------------------------------------------------------------------
     print(f"\n{'─'*60}")
-    print("  LAYER 2 / 4 — Talking Points Summarizer (Gemini Flash)")
+    print("  LAYER 2 / 5 — Talking Points Summarizer (Gemini Flash)")
     print(f"{'─'*60}")
 
     # Build the aggregated context payload
@@ -296,7 +299,7 @@ async def run_pipeline(
     # LAYER 3 — Call Classification & Quality Score (UPDATED FOR CONQUEST 2026)
     # -----------------------------------------------------------------------
     print(f"\n{'─'*60}")
-    print("  LAYER 3 / 4 — Call Classification & Quality (Gemini Flash)")
+    print("  LAYER 3 / 5 — Call Classification & Quality (Gemini Flash)")
     print(f"{'─'*60}")
 
     try:
@@ -320,6 +323,38 @@ async def run_pipeline(
             "doc_quality_metadata": {},
             "layer3_metadata": {}
         }
+
+    # -----------------------------------------------------------------------
+    # LAYER 4 — Mentor Intervention Analysis
+    # -----------------------------------------------------------------------
+    print(f"\n{'─'*60}")
+    print("  LAYER 4 / 5 — Mentor Intervention Analysis (Gemini Flash)")
+    print(f"{'─'*60}")
+
+    try:
+        intervention_data = analyze_interventions(
+            transcript_data=transcript_data,
+            breakdown_data=breakdown_data,
+            classification_data=classification_data,
+            layer1_metadata=layer1_metadata,
+            user_context=user_context,
+        )
+        print_intervention_analysis(intervention_data)
+    except Exception as e:
+        print(f"  ❌  Layer 4 failed: {e}")
+        print("  ⚠️  Continuing pipeline with empty intervention map...")
+        from layer4_intervention import _default_layer4_output
+        intervention_data = _default_layer4_output(f"Layer 4 failure: {e}")
+
+    # -----------------------------------------------------------------------
+    # LAYER 5 — Numerical Solution Quality Scoring (Pure Python)
+    # -----------------------------------------------------------------------
+    print(f"\n{'─'*60}")
+    print("  LAYER 5 / 5 — Solution Quality Scoring (Deterministic)")
+    print(f"{'─'*60}")
+
+    scoring_data = compute_solution_scores(intervention_data, breakdown_data)
+    print_solution_scores(scoring_data)
 
     # -----------------------------------------------------------------------
     # Finalize consolidated run & metadata
@@ -348,7 +383,9 @@ async def run_pipeline(
         "layer3_classification": {
             **classification_data,
             "google_doc_id": None, # Will be set below
-        }
+        },
+        "layer4_intervention": intervention_data,
+        "layer5_scoring": scoring_data,
     }
 
     # 3B. Storage: Save final evaluation to Google Doc & push to Supabase
@@ -422,6 +459,10 @@ async def run_pipeline(
     print(f"  📊  Doc Quality    : {classification_data.get('doc_quality_score', 0.0)}/10.0")
     print(f"  📞  Session type   : {cls_block.get('session_type', '?')}")
     print(f"  😊  Sentiment       : {cls_block.get('sentiment', '?')}")
+    l4_meta = intervention_data.get("layer4_metadata", {})
+    l4_counts = l4_meta.get("intervention_type_counts", {})
+    print(f"  🔬  Interventions  : {sum(l4_counts.values())} across {len(l4_meta.get('parameters_analysed', []))} parameter(s)")
+    print(f"  📐  Solution Score : {scoring_data.get('overall_score', 0.0)}/4.0 ({scoring_data.get('overall_rating_label', '?')})")
     print(f"{'='*60}\n")
 
     return final_output

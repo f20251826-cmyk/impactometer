@@ -30,6 +30,8 @@ load_dotenv()
 # Import pipeline components
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
+from layer4_intervention import analyze_interventions, print_intervention_analysis
+from layer5_scoring import compute_solution_scores, print_solution_scores
 from score_tracker import record_score
 from db_helpers import create_call_record, update_layer1_data, update_layer2_data, update_layer3_data, create_gdoc
 
@@ -40,7 +42,7 @@ async def run_custom_pipeline():
     print("=" * 60)
 
     # 1. Read the custom transcript from file
-    transcript_path = "transcript2.txt"
+    transcript_path = "basel_session.txt"
     if not os.path.exists(transcript_path):
         print(f"❌ Error: Custom transcript file not found at {transcript_path}")
         return
@@ -56,19 +58,19 @@ async def run_custom_pipeline():
     call_id = create_call_record(call_title)
 
     # Compile mock Layer 1 stats for input
-    # Gaurav Shah, Ram Ramarathnam, VIHAAN ANIL GUPTA, Unidentified Speaker
+    # Gaurav Shah (mentor), Ram Ramarathnam (founder), VIHAAN ANIL GUPTA (host)
     layer1_metadata = {
         "speaker_count": 4,
-        "duration": 2076, # 34 mins approx
+        "duration": 2076,
         "confidence_scores": [0.99] * 50
     }
     
     transcript_data = {
         "transcript": raw_transcript,
         "speakers": [
-            {"speaker": "Gaurav Shah", "text": "Mentor analysis", "start": 0.0, "end": 0.0, "confidence": 0.99},
-            {"speaker": "Ram Ramarathnam", "text": "Founder presentation", "start": 0.0, "end": 0.0, "confidence": 0.99},
-            {"speaker": "VIHAAN ANIL GUPTA", "text": "Host intro", "start": 0.0, "end": 0.0, "confidence": 0.99}
+            {"speaker": "Gaurav Shah", "text": "Mentor", "start": 0.0, "end": 0.0, "confidence": 0.99},
+            {"speaker": "Ram Ramarathnam", "text": "Founder", "start": 0.0, "end": 0.0, "confidence": 0.99},
+            {"speaker": "VIHAAN ANIL GUPTA", "text": "Host", "start": 0.0, "end": 0.0, "confidence": 0.99}
         ]
     }
 
@@ -92,13 +94,13 @@ async def run_custom_pipeline():
 
     # 3. LAYER 2 — Summarizer Agent
     print(f"\n{'─'*60}")
-    print("  LAYER 2 / 4 — Talking Points Summarizer (Gemini Flash)")
+    print("  LAYER 2 / 5 — Talking Points Summarizer (Gemini Flash)")
     print(f"{'─'*60}")
 
     user_context = {
         "summary_length": "standard",
         "focus_areas": ["GTM", "ICP", "pitch deck", "focus"],
-        "custom_notes": "A mentor-founder session between Gaurav Shah (PE/VC Advisor) and Ram Ramarathnam (Founder of Basel - DC appliances/green energy)."
+        "custom_notes": "Mentor-founder session between Gaurav Shah (PE/VC Advisor) and Ram Ramarathnam (Founder of Basel - DC appliances/green energy)."
     }
 
     layer2_payload = {
@@ -115,53 +117,74 @@ async def run_custom_pipeline():
     gdoc_l2_title = f"Summary - {call_title}"
     
     bullets = []
-    for tp in breakdown_data.get("talking_points", []):
-        bullets.append(
-            f"• [{tp.get('topic', 'Topic')}] (Attribution: {tp.get('speaker_attribution', '?')})\n"
-            f"  Summary: {tp.get('summary', '')}\n"
-            f"  Quote: \"{tp.get('verbatim_anchor', '')}\"\n"
-            f"  Outcome: {tp.get('outcome', '')}"
-        )
+    for param, statements in breakdown_data.get("discussion", {}).items():
+        if statements:
+            bullets.append(f"\n[{param}]")
+            for st in statements:
+                bullets.append(f"  • {st.get('speaker', '?')}: {st.get('statement', '')}")
     gdoc_l2_bullets = "\n".join(bullets)
-    
-    actions = []
-    for act in breakdown_data.get("action_items", []):
-        actions.append(
-            f"✓ {act.get('action', '')} (Owner: {act.get('owner', '?')})\n"
-            f"  Anchor: \"{act.get('verbatim_anchor', '')}\""
-        )
-    gdoc_l2_actions = "\n".join(actions)
+
+    pitch_lines = []
+    for param, val in breakdown_data.get("pitch_metrics", {}).items():
+        if val:
+            pitch_lines.append(f"  • {param}: {val}")
+    gdoc_l2_pitch = "\n".join(pitch_lines) or "  (none extracted)"
 
     gdoc_l2_content = (
-        f"TALKING POINTS SUMMARY & ACTIONS (CONQUEST 2026)\n"
+        f"TALKING POINTS SUMMARY (CONQUEST 2026)\n"
         f"Generated: {datetime.now().isoformat()}\n"
         f"Call ID: {call_id}\n"
         f"Sizing parameter: standard\n"
         f"{'='*40}\n\n"
-        f"### EXECUTIVE SUMMARY\n"
-        f"{breakdown_data.get('session_summary', '')}\n\n"
+        f"### PITCH METRICS\n"
+        f"{gdoc_l2_pitch}\n\n"
         f"### KEY DISCUSSION POINTS\n"
-        f"{gdoc_l2_bullets}\n\n"
-        f"### ACTION ITEMS\n"
-        f"{gdoc_l2_actions}"
+        f"{gdoc_l2_bullets}"
     )
     
     l2_doc_id = create_gdoc(gdoc_l2_title, gdoc_l2_content)
     update_layer2_data(
         call_id=call_id,
         doc_id=l2_doc_id,
-        summary=breakdown_data.get("session_summary", "")
+        summary=json.dumps(breakdown_data.get("pitch_metrics", {}), ensure_ascii=False)
     )
 
     # 4. LAYER 3 — Call Classification & Quality Score
     print(f"\n{'─'*60}")
-    print("  LAYER 3 / 4 — Call Classification & Quality (Gemini Flash)")
+    print("  LAYER 3 / 5 — Call Classification & Quality (Gemini Flash)")
     print(f"{'─'*60}")
 
     classification_data = classify_call(transcript_data, breakdown_data, user_context=user_context)
     print_classification(classification_data)
 
-    # 5. Save consolidated run & record score
+    # 5. LAYER 4 — Mentor Intervention Analysis
+    print(f"\n{'─'*60}")
+    print("  LAYER 4 / 5 — Mentor Intervention Analysis (Gemini Flash)")
+    print(f"{'─'*60}")
+
+    try:
+        intervention_data = analyze_interventions(
+            transcript_data=transcript_data,
+            breakdown_data=breakdown_data,
+            classification_data=classification_data,
+            layer1_metadata=layer1_metadata,
+            user_context=user_context,
+        )
+        print_intervention_analysis(intervention_data)
+    except Exception as e:
+        print(f"  ❌  Layer 4 failed: {e}")
+        from layer4_intervention import _default_layer4_output
+        intervention_data = _default_layer4_output(f"Layer 4 failure: {e}")
+
+    # 6. LAYER 5 — Numerical Solution Quality Scoring
+    print(f"\n{'─'*60}")
+    print("  LAYER 5 / 5 — Solution Quality Scoring (Deterministic)")
+    print(f"{'─'*60}")
+
+    scoring_data = compute_solution_scores(intervention_data, breakdown_data)
+    print_solution_scores(scoring_data)
+
+    # 7. Save consolidated run & record score
     pipeline_end = datetime.now()
     elapsed = (pipeline_end - pipeline_start).total_seconds()
 
@@ -186,27 +209,29 @@ async def run_custom_pipeline():
         "layer3_classification": {
             **classification_data,
             "google_doc_id": None,
-        }
+        },
+        "layer4_intervention": intervention_data,
+        "layer5_scoring": scoring_data,
     }
 
     # Sync Layer 3 & final metadata to Google Docs & Supabase
     print("  💾  Syncing Layer 3 & final metadata to Google Docs & Supabase...")
     gdoc_l3_title = f"Evaluation - {call_title}"
-    cls_block = classification_data.get("classification", {})
+    eval_block = classification_data.get("layer3_evaluation", {})
+    mentor = eval_block.get("mentor_engagement", {})
+    founder = eval_block.get("founder_preparedness", {})
     gdoc_l3_content = (
         f"CALL EVALUATION & METADATA (CONQUEST 2026)\n"
         f"Generated: {datetime.now().isoformat()}\n"
         f"Call ID: {call_id}\n"
         f"{'='*40}\n\n"
-        f"Session Type: {cls_block.get('session_type')}\n"
-        f"Main Topic: {cls_block.get('primary_topic')}\n"
-        f"Sentiment: {cls_block.get('sentiment')}\n"
-        f"Sentiment Evidence: {cls_block.get('sentiment_evidence')}\n"
-        f"Founder Receptiveness: {cls_block.get('founder_receptiveness')} ({cls_block.get('founder_receptiveness_evidence')})\n"
-        f"Participant Count: {cls_block.get('participant_count')}\n"
-        f"Document Quality Score: {classification_data.get('doc_quality_score', 0.0)}/10.0\n\n"
-        f"### Score Metadata:\n"
-        f"{json.dumps(classification_data.get('doc_quality_metadata', {}), indent=2)}"
+        f"Mentor Engagement: {mentor.get('score', 0.0)}/10.0\n"
+        f"  {mentor.get('observation', '')}\n\n"
+        f"Founder Preparedness: {founder.get('score', 0.0)}/10.0\n"
+        f"  {founder.get('observation', '')}\n\n"
+        f"Overall Progress Metric: {eval_block.get('overall_progress_metric', 0.0)}/10.0\n\n"
+        f"### Next Steps:\n"
+        f"{json.dumps(eval_block.get('next_steps_for_founder', []), indent=2)}"
     )
     
     l3_doc_id = create_gdoc(gdoc_l3_title, gdoc_l3_content)
@@ -217,7 +242,7 @@ async def run_custom_pipeline():
         call_id=call_id,
         doc_id=l3_doc_id,
         classification=classification_data,
-        quality_score=classification_data.get("doc_quality_score", 0.0),
+        quality_score=eval_block.get("overall_progress_metric", 0.0),
         metadata=final_output["pipeline_metadata"]
     )
 
@@ -249,9 +274,13 @@ async def run_custom_pipeline():
     print("  ✅  PIPELINE COMPLETE")
     print(f"{'='*60}")
     print(f"  ⏱️   Total time     : {elapsed:.1f}s")
-    print(f"  📊  Doc Quality    : {classification_data.get('doc_quality_score', 0.0)}/10.0")
-    print(f"  📞  Session type   : {cls_block.get('session_type', '?')}")
-    print(f"  😊  Sentiment       : {cls_block.get('sentiment', '?')}")
+    print(f"  📊  Progress Metric: {eval_block.get('overall_progress_metric', 0.0)}/10.0")
+    print(f"  🧑‍🏫 Mentor Score   : {mentor.get('score', 0.0)}/10.0")
+    print(f"  🧑‍💼 Founder Score  : {founder.get('score', 0.0)}/10.0")
+    l4_meta = intervention_data.get("layer4_metadata", {})
+    l4_counts = l4_meta.get("intervention_type_counts", {})
+    print(f"  🔬  Interventions  : {sum(l4_counts.values())} across {len(l4_meta.get('parameters_analysed', []))} parameter(s)")
+    print(f"  📐  Solution Score : {scoring_data.get('overall_score', 0.0)}/4.0 ({scoring_data.get('overall_rating_label', '?')})")
     print(f"{'='*60}\n")
 
 if __name__ == "__main__":
