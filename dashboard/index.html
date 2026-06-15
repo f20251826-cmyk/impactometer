@@ -8,6 +8,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Cosmograph (GPU force-graph) — loaded as an ES module and exposed via window.cosmoReady -->
+<script type="module">
+  let _ok, _fail;
+  window.cosmoReady = new Promise((res, rej) => { _ok = res; _fail = rej; });
+  import("https://esm.sh/@cosmograph/cosmos@1.6.1")
+    .then(mod => { window.Cosmos = mod; _ok(mod.Graph); console.log("[cosmos] Graph loaded"); })
+    .catch(err => { console.error("[cosmos] failed to load", err); _fail(err); });
+</script>
 <style>
   :root {
     --orange: #FB723D;
@@ -20,8 +28,8 @@
     --text: #FFFBF9;
     --text-dim: rgba(255,251,249,0.6);
     --text-muted: rgba(255,251,249,0.35);
-    --score-0: #ef4444; --score-1: #f97316; --score-2: #eab308; --score-3: #84cc16; --score-4: #22c55e;
-    --rebuttal: #ef4444; --warning: #f59e0b; --recommendation: #FB723D; --flag: #8a8a8a;
+    --score-0: #7A3B2E; --score-1: #9C6A3A; --score-2: #8F7A4A; --score-3: #5A7A52; --score-4: #FB723D;
+    --rebuttal: #C4614A; --warning: #C49A4A; --recommendation: #FB723D; --flag: #5A5550;
   }
 
   * { box-sizing: border-box; }
@@ -38,9 +46,22 @@
   }
 
   /* fixed fullscreen Aura video background (orange via hue-rotate) */
-  .bg-fixed { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .bg-fixed video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; filter: hue-rotate(185deg) saturate(1.3) brightness(0.7); }
+  .bg-fixed { position: fixed; inset: 0; z-index: 0; pointer-events: none; user-select: none; overflow: hidden; }
+  .bg-fixed video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; filter: hue-rotate(185deg) saturate(1.3) brightness(0.7); }
   .bg-fixed .bg-overlay { position: absolute; inset: 0; background: rgba(17,18,19,0.45); }
+
+  /* kill all browser-native video UI (play button, controls, overlays) */
+  video::-webkit-media-controls,
+  video::-webkit-media-controls-enclosure,
+  video::-webkit-media-controls-panel,
+  video::-webkit-media-controls-play-button,
+  video::-webkit-media-controls-overlay-play-button,
+  video::--webkit-media-controls-start-playback-button {
+    display: none !important;
+    -webkit-appearance: none;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
 
   /* vertical guide lines */
   .guide { position: fixed; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.07); z-index: 5; pointer-events: none; }
@@ -86,7 +107,7 @@
   /* ---------- badges ---------- */
   .badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 10px; border-radius: 5px; line-height: 1.4; white-space: nowrap; }
   .badge.outline { background: transparent; border: 1px solid currentColor; }
-  .score-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 26px; padding: 0 8px; border-radius: 6px; font-weight: 800; font-size: 14px; color: #111213; transition: transform 0.12s ease; }
+  .score-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 26px; padding: 0 8px; border-radius: 6px; font-weight: 800; font-size: 14px; color: #FFFBF9; transition: transform 0.12s ease; }
   .score-badge:hover { transform: scale(1.03); }
   .score-badge.mini { min-width: 22px; height: 21px; font-size: 12px; border-radius: 5px; }
 
@@ -144,7 +165,7 @@
   .track-label { font-weight: 600; font-size: 14px; color: var(--text-muted); }
   .track-step.active .track-label, .track-step.done .track-label { color: var(--cream); }
 
-  .error-box { width: 100%; max-width: 540px; border-radius: 14px; padding: 24px; text-align: left; background: rgba(239,68,68,0.06); box-shadow: inset 0 0 0 1px rgba(239,68,68,0.4); }
+  .error-box { width: 100%; max-width: 540px; border-radius: 14px; padding: 24px; text-align: left; background: rgba(196,97,74,0.06); box-shadow: inset 0 0 0 1px rgba(196,97,74,0.4); }
   .error-box h4 { font-weight: 700; font-size: 16px; color: var(--cream); margin: 0 0 8px; }
   .error-box code { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; color: var(--orange); margin-top: 4px; }
   .error-box p { color: var(--text-dim); font-size: 14px; margin: 6px 0; }
@@ -403,6 +424,46 @@
   .sv-date { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
   .sv-link { color: var(--orange); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-block; margin-top: 18px; transition: color 0.15s; }
   .sv-link:hover { color: var(--orange-hover); text-decoration: underline; }
+
+  /* ---------- startup evolution graph (canvas timeline) ---------- */
+  .evo-wrap { position: relative; z-index: 2; max-width: 72rem; margin: 0 auto; padding: 24px 24px 56px; }
+  .evo-canvas-holder { position: relative; width: 100%; height: 440px; }
+  #evo-graph { display: block; width: 100%; height: 440px; filter: url(#grain); }
+  .evo-tooltip { position: absolute; z-index: 30; pointer-events: none; opacity: 0; transition: opacity 0.12s ease; transform: translate(-50%, -100%); border-radius: 8px; padding: 12px 16px; min-width: 180px; max-width: 260px; background: rgba(20,22,24,0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 12px 30px rgba(0,0,0,0.4); }
+  .evo-tooltip.show { opacity: 1; }
+  .evo-tt-l1 { font-weight: 600; font-size: 12px; color: var(--cream); }
+  .evo-tt-l2 { font-weight: 500; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .evo-tt-l3 { display: flex; align-items: center; gap: 8px; margin-top: 9px; font-size: 11px; color: var(--text-dim); }
+  .evo-tt-l4 { font-weight: 500; font-size: 11px; margin-top: 7px; }
+  .evo-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; margin-top: 18px; }
+  .evo-legend-item { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 11px; color: rgba(255,251,249,0.4); }
+  .evo-toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%) translateY(8px); z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; background: rgba(20,22,24,0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); border-radius: 100px; padding: 11px 20px; font-weight: 500; font-size: 12px; color: var(--cream); }
+  .evo-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- back-to-home arrow (sessions header) ---------- */
+  .sessions-header-left { display: flex; align-items: center; gap: 14px; }
+  .btn-home-arrow { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--cream); background: rgba(255,251,249,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); transition: background 0.15s, transform 0.15s; }
+  .btn-home-arrow:hover { background: rgba(251,114,61,0.18); transform: translateX(-2px); }
+
+  /* ---------- per-startup Cosmograph evolution graph ---------- */
+  .cosmo-card { margin-top: 18px; padding: 16px 18px 14px; border-radius: 18px; }
+  .cosmo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .cosmo-title { display: flex; flex-direction: column; gap: 2px; }
+  .cosmo-title .eyebrow { margin: 0; }
+  .cosmo-sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .cosmo-delta { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+  .cosmo-delta-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 100px; font-weight: 700; font-size: 13px; color: #FFFBF9; }
+  .cosmo-holder { position: relative; width: 100%; height: 320px; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, rgba(251,114,61,0.05), rgba(20,20,22,0.25) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+  .cosmo-canvas { display: block; width: 100%; height: 100%; }
+  .cosmo-note { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 24px; font-size: 12px; color: var(--text-muted); pointer-events: none; }
+  .cosmo-tip { position: absolute; z-index: 30; pointer-events: none; opacity: 0; transition: opacity 0.12s ease; transform: translate(-50%, -115%); border-radius: 8px; padding: 8px 12px; min-width: 120px; background: rgba(20,22,24,0.9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 10px 26px rgba(0,0,0,0.4); }
+  .cosmo-tip.show { opacity: 1; }
+  .cosmo-tip-l1 { font-weight: 700; font-size: 12px; color: var(--cream); }
+  .cosmo-tip-l2 { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .cosmo-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+  .cosmo-legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: rgba(255,251,249,0.45); }
+  .cosmo-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .cosmo-line { width: 18px; height: 0; flex: none; border-top-width: 3px; border-top-style: solid; }
 </style>
 </head>
 <body>
@@ -425,10 +486,29 @@
 
 <!-- fixed fullscreen Aura video background (orange via hue-rotate) -->
 <div class="bg-fixed" aria-hidden="true">
-  <video autoplay loop muted playsinline
+  <video id="bg-video" autoplay loop muted playsinline
+    disablepictureinpicture disableremoteplayback
     src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260508_064122_c4750c0e-7476-4b44-94a2-a85a65c63bf2.mp4"></video>
   <div class="bg-overlay"></div>
 </div>
+<script>
+  /* keep the background video playing — force play, retry on visibility + interval */
+  (function() {
+    function forcePlay() {
+      const v = document.getElementById('bg-video');
+      if (!v) return;
+      v.muted = true;
+      const p = v.play();
+      if (p && p.catch) p.catch(() => {});
+    }
+    document.addEventListener('DOMContentLoaded', forcePlay);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) forcePlay();
+    });
+    // Re-attempt every 2s in case it gets blocked
+    setInterval(forcePlay, 2000);
+  })();
+</script>
 
 <span class="guide l"></span><span class="guide r"></span>
 
@@ -488,11 +568,20 @@
 <div class="window-wrap">
   <div class="window anim a-up40" id="session-window" style="animation-delay:1.1s">
     <div class="window-titlebar">
-      <div class="traffic"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+      <div class="traffic"><span style="background:#C4614A"></span><span style="background:#C49A4A"></span><span style="background:#5A7A52"></span></div>
       <div class="window-title">Conquest Impact — Session Analysis</div>
     </div>
     <div class="window-body" id="session-window-body"></div>
   </div>
+</div>
+
+<!-- ============ SECTION 4.5 — STARTUP EVOLUTION GRAPH (canvas timeline) ============ -->
+<div class="evo-wrap anim a-up" style="animation-delay:1.2s">
+  <div class="evo-canvas-holder">
+    <canvas id="evo-graph"></canvas>
+    <div class="evo-tooltip" id="evo-tooltip"></div>
+  </div>
+  <div class="evo-legend" id="evo-legend"></div>
 </div>
 
 <!-- ============ SECTION 5 — PIPELINE ============ -->
@@ -513,9 +602,9 @@
       <div class="pipe-eyebrow">Pipeline layers · 45 second runtime</div>
       <div class="glass layer-card"><span class="lc-dot" style="background:#FB723D"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Transcription</span><span class="lc-num">Layer 1</span></div><div class="lc-item">Deepgram Nova-3 diarizes audio</div></div></div>
       <div class="glass layer-card"><span class="lc-dot" style="background:#FFBF99"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Summarizer</span><span class="lc-num">Layer 2</span></div><div class="lc-item">Groups discussion by 5 parameters</div></div></div>
-      <div class="glass layer-card"><span class="lc-dot" style="background:#f59e0b"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Classifier</span><span class="lc-num">Layer 3</span></div><div class="lc-item">Scores sentiment and receptiveness</div></div></div>
-      <div class="glass layer-card"><span class="lc-dot" style="background:#84cc16"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Intervention Mapper</span><span class="lc-num">Layer 4</span></div><div class="lc-item">REBUTTAL / WARNING / RECOMMENDATION / FLAG</div></div></div>
-      <div class="glass layer-card"><span class="lc-dot" style="background:#22c55e"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Scorer</span><span class="lc-num">Layer 5</span></div><div class="lc-item">Deterministic 0–4. Pure Python.</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#C49A4A"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Classifier</span><span class="lc-num">Layer 3</span></div><div class="lc-item">Scores sentiment and receptiveness</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#8F7A4A"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Intervention Mapper</span><span class="lc-num">Layer 4</span></div><div class="lc-item">REBUTTAL / WARNING / RECOMMENDATION / FLAG</div></div></div>
+      <div class="glass layer-card"><span class="lc-dot" style="background:#5A7A52"></span><div class="lc-main"><div class="lc-top"><span class="lc-label">Scorer</span><span class="lc-num">Layer 5</span></div><div class="lc-item">Deterministic 0–4. Pure Python.</div></div></div>
     </div>
   </div>
 </section>
@@ -631,15 +720,15 @@ const SAMPLE_DATA = {
    ===================================================================== */
 const API_BASE = "http://localhost:5001";
 const SCORE_COLORS = { 0: "var(--score-0)", 1: "var(--score-1)", 2: "var(--score-2)", 3: "var(--score-3)", 4: "var(--score-4)" };
-const SCORE_RGB = { 0: "239,68,68", 1: "249,115,22", 2: "234,179,8", 3: "132,204,22", 4: "34,197,94" };
+const SCORE_RGB = { 0: "122,59,46", 1: "156,106,58", 2: "143,122,74", 3: "90,122,82", 4: "251,114,61" };
 const SCORE_LABELS = { 0: "No Guidance", 1: "Flagged Only", 2: "Directional", 3: "Substantive", 4: "Rich Intervention" };
 const INTERV_COLORS = { REBUTTAL: "var(--rebuttal)", WARNING: "var(--warning)", RECOMMENDATION: "var(--recommendation)", FLAG_NO_SOLUTION: "var(--flag)" };
 const INTERV_LABELS = { REBUTTAL: "REBUTTAL", WARNING: "WARNING", RECOMMENDATION: "RECOMMENDATION", FLAG_NO_SOLUTION: "FLAG" };
 const INTERV_ORDER = ["REBUTTAL", "WARNING", "RECOMMENDATION", "FLAG_NO_SOLUTION"];
-const SENTIMENT_COLORS = { constructive: "#22c55e", tense: "#ef4444", exploratory: "#3b82f6", directive: "#f59e0b", collaborative: "#14b8a6" };
-const RECEPTIVE_COLORS = { high: "#22c55e", medium: "#f59e0b", low: "#ef4444" };
-const SEVERITY_COLORS = { critical: "#ef4444", significant: "#f59e0b", moderate: "#8a8a8a" };
-const ALIGN_COLORS = { reinforcing: "#22c55e", contradicting: "#ef4444", redirecting: "#FB723D", gap: "#8a8a8a" };
+const SENTIMENT_COLORS = { constructive: "#5A7A52", tense: "#C4614A", exploratory: "#8A8070", directive: "#C49A4A", collaborative: "#7A8A7A" };
+const RECEPTIVE_COLORS = { high: "#5A7A52", medium: "#C49A4A", low: "#C4614A" };
+const SEVERITY_COLORS = { critical: "#C4614A", significant: "#C49A4A", moderate: "#7A7268" };
+const ALIGN_COLORS = { reinforcing: "#5A7A52", contradicting: "#C4614A", redirecting: "#FB723D", gap: "#5A5550" };
 const PARAM_LABELS = { GTM: "Go-to-Market Strategy", market_structure_and_timing: "Market Structure & Timing", MVP: "Minimum Viable Product", unit_economics_and_capital_efficiency: "Unit Economics & Capital Efficiency", team_structure: "Team Structure" };
 const PARAM_COLUMNS = [ ["GTM", "GTM"], ["MVP", "MVP"], ["Unit Econ", "unit_economics_and_capital_efficiency"], ["Market", "market_structure_and_timing"], ["Team", "team_structure"] ];
 
@@ -657,11 +746,11 @@ function sid(s) { if (s.id) return s.id; if (s._output_file) return s._output_fi
 function scoreColor(score) { return SCORE_COLORS[score] || "var(--flag)"; }
 function scoreBadge(score, mini) { return `<span class="score-badge ${mini ? "mini" : ""}" style="background:${scoreColor(score)}">${esc(score)}</span>`; }
 function scoreBlock(score) { const rgb = SCORE_RGB[score] || "138,138,138"; return `<div class="glass score-block" style="background:rgba(${rgb},0.15);color:rgb(${rgb})">${esc(score)}</div>`; }
-function score10Rgb(v) { v = Number(v); if (v >= 8) return "34,197,94"; if (v >= 6.5) return "132,204,22"; if (v >= 5) return "234,179,8"; if (v >= 3) return "249,115,22"; return "239,68,68"; }
+function score10Rgb(v) { v = Number(v); if (v >= 8) return "251,114,61"; if (v >= 6.5) return "90,122,82"; if (v >= 5) return "143,122,74"; if (v >= 3) return "156,106,58"; return "122,59,46"; }
 function scoreBlock10(v) { const rgb = score10Rgb(v); return `<div class="glass score-block sm" style="background:rgba(${rgb},0.15);color:rgb(${rgb})">${esc(v == null ? "—" : v)}</div>`; }
 function score10Badge(v) { const rgb = score10Rgb(v); return `<span class="score-badge" style="background:rgb(${rgb})">${esc(v)}</span>`; }
 function pillBadge(text, color) { return `<span class="badge outline" style="color:${color}">${esc(text)}</span>`; }
-function solidBadge(text, color) { return `<span class="badge" style="background:${color};color:#111213">${esc(text)}</span>`; }
+function solidBadge(text, color) { return `<span class="badge" style="background:${color};color:#FFFBF9">${esc(text)}</span>`; }
 function quote(text, muted) { if (text == null || String(text).trim() === "") return ""; return `<blockquote class="q${muted ? " muted" : ""}">${esc(text)}</blockquote>`; }
 function fmtBytes(n) { if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(1) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
 function realStartup(s) { const m = s.pipeline_metadata || {}; if (m.startup) return m.startup; if (m.input_source) return String(m.input_source).replace(/\.[^.]+$/, ""); return "Untitled Session"; }
@@ -779,7 +868,7 @@ function listRow(s) {
   if (isMock(s)) {
     const scores = s.layer5.parameter_scores || {};
     const cells = PARAM_COLUMNS.map(([, key]) => key in scores ? `<td class="num">${scoreBadge(scores[key], true)}</td>` : `<td class="num cell-dash">—</td>`).join("");
-    return `<tr onclick="openDetail('${esc(id)}')"><td><div class="startup-name">${esc(s.startup)}</div></td><td class="cell-date">${esc(s.date)}</td><td class="num">${scoreBadge(s.overall_score)}</td>${cells}<td>${solidBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}</td><td>${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</td></tr>`;
+    return `<tr onclick="openDetail('${esc(id)}')"><td><div class="startup-name">${esc(s.startup)}</div></td><td class="cell-date">${esc(s.date)}</td><td class="num">${scoreBadge(s.overall_score)}</td>${cells}<td>${solidBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#7A7268")}</td><td>${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#7A7268")}</td></tr>`;
   }
   const ev = realEval(s), overall = ev.overall_progress_metric, active = realActiveParams(s);
   const cells = PARAM_COLUMNS.map(([, key]) => active.includes(key) ? `<td class="num"><span style="color:var(--orange);font-weight:700">✓</span></td>` : `<td class="num cell-dash">—</td>`).join("");
@@ -825,14 +914,14 @@ function renderParamCard(session, param, open) {
 
   const problems = (analysis.problems_identified || []).map(pr => {
     const srcs = (pr.source_statements || []).map(st => quote(st)).join("");
-    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#8a8a8a")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
+    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#7A7268")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
   }).join("");
 
   const ivList = analysis.interventions || [];
   const ivTotal = ivList.length;
   const interventions = ivList.map((iv, i) => {
-    const c = INTERV_COLORS[iv.intervention_type] || "#8a8a8a";
-    const ac = ALIGN_COLORS[iv.aligned_with_founder_strategy] || "#8a8a8a";
+    const c = INTERV_COLORS[iv.intervention_type] || "#7A7268";
+    const ac = ALIGN_COLORS[iv.aligned_with_founder_strategy] || "#7A7268";
     return `<div class="glass interv">
       <div class="interv-cite">${esc(param)} · Intervention ${i + 1} of ${ivTotal}</div>
       <div class="interv-top">${solidBadge(INTERV_LABELS[iv.intervention_type] || iv.intervention_type, c)}${pillBadge(iv.aligned_with_founder_strategy, ac)}</div>
@@ -875,7 +964,7 @@ function renderMockDetail(s) {
     <div class="glass detail-header glow">
       <div class="dh-top">
         <div><div class="dh-startup">${esc(s.startup)}</div><div class="dh-date">${esc(s.date)} · ${esc(s.id)}</div></div>
-        <div class="dh-meta">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+        <div class="dh-meta">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#7A7268")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#7A7268")}</div>
       </div>
       ${evidence}
       <div class="score-row">
@@ -926,11 +1015,11 @@ function renderChart(session) {
   note.textContent = history.length <= 1 ? "Only one session recorded — the trend line will populate as more sessions are analysed." : "";
   const ctx = document.getElementById("progressChart").getContext("2d");
   if (chartInstance) chartInstance.destroy();
-  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  const colorMap = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
   chartInstance = new Chart(ctx, {
     type: "line",
-    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: session.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" }, title: { display: true, text: "Overall Score", color: "rgba(255,251,249,0.35)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: session.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.08)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.4)", precision: 0 }, grid: { color: "rgba(255,251,249,0.05)" }, title: { display: true, text: "Overall Score", color: "rgba(255,251,249,0.35)" } }, x: { ticks: { color: "rgba(255,251,249,0.4)" }, grid: { color: "rgba(255,251,249,0.05)" } } } }
   });
 }
 
@@ -940,7 +1029,7 @@ function renderChart(session) {
 const WIN = { sessionId: SAMPLE_DATA.sessions[0].id, param: null };
 const NAV_LINKS = ["Sessions", "Pipeline", "Scoring", "Upload"];
 const MENU_ITEMS = ["Sessions", "Pipeline", "Scoring", "Parameters", "Export", "Help"];
-const PARAM_DOTS = [["GTM", "#FB723D"], ["MVP", "#FFBF99"], ["Market", "#f59e0b"], ["Unit Econ", "#84cc16"], ["Team", "#6b7280"]];
+const PARAM_DOTS = [["GTM", "#FB723D"], ["MVP", "#FFBF99"], ["Market", "#C49A4A"], ["Unit Econ", "#5A7A52"], ["Team", "#7A7268"]];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function monthDay(d) { const p = String(d).split("-").map(Number); return MONTHS[p[1] - 1] + " " + p[2]; }
@@ -989,7 +1078,7 @@ function renderWindow() {
   const sessionRows = SAMPLE_DATA.sessions.map(sess => {
     const active = sess.id === WIN.sessionId;
     return `<div class="win-navitem ${active ? "active" : ""}" onclick="selectSession('${esc(sess.id)}')">
-      <span class="dot" style="background:${active ? "#FB723D" : "#6b7280"}"></span>
+      <span class="dot" style="background:${active ? "#FB723D" : "#7A7268"}"></span>
       <span class="nm">${esc(sess.startup)}</span>
       ${scoreBadge(sess.overall_score, true)}
       <span class="dt">${monthDay(sess.date)}</span>
@@ -1044,12 +1133,12 @@ function renderWinDetail(s, param) {
 
   const problems = (a.problems_identified || []).map(pr => {
     const srcs = (pr.source_statements || []).map(st => quote(st, true)).join("");
-    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#8a8a8a")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
+    return `<div class="problem">${solidBadge(pr.severity, SEVERITY_COLORS[pr.severity] || "#7A7268")}<div class="problem-text"><div class="problem-summary">${esc(pr.problem_summary)}</div>${srcs}</div></div>`;
   }).join("") || '<div class="empty-note">None recorded.</div>';
 
   const ivList = a.interventions || [];
   const interventions = ivList.map((iv, i) => {
-    const c = INTERV_COLORS[iv.intervention_type] || "#8a8a8a";
+    const c = INTERV_COLORS[iv.intervention_type] || "#7A7268";
     return `<div class="glass interv">
       <div class="interv-cite">${esc(param)} · Intervention ${i + 1} of ${ivList.length}</div>
       <div class="interv-top">${solidBadge(INTERV_LABELS[iv.intervention_type] || iv.intervention_type, c)}</div>
@@ -1070,7 +1159,7 @@ function renderWinDetail(s, param) {
       <div>
         <div class="dh-name">${esc(s.startup)}</div>
         <div class="dh-sub">${esc(SCORE_LABELS[s.overall_score] || "")} · ${monthDay(s.date)}</div>
-        <div class="dh-pills">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+        <div class="dh-pills">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#7A7268")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#7A7268")}</div>
       </div>
     </div>
     <div class="win-dbody">
@@ -1095,11 +1184,11 @@ function renderWinChart(s) {
   if (!canvas) return;
   if (winChartInstance) { winChartInstance.destroy(); winChartInstance = null; }
   const history = SAMPLE_DATA.history[s.startup] || [{ session: 1, score: s.overall_score }];
-  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  const colorMap = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
   winChartInstance = new Chart(canvas.getContext("2d"), {
     type: "line",
-    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.08)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.4)", precision: 0 }, grid: { color: "rgba(255,251,249,0.05)" } }, x: { ticks: { color: "rgba(255,251,249,0.4)" }, grid: { color: "rgba(255,251,249,0.05)" } } } }
   });
 }
 
@@ -1149,15 +1238,21 @@ function showSessions() {
 function renderSessions() {
   Object.values(sessionViewCharts).forEach(c => { try { c.destroy(); } catch (e) {} });
   sessionViewCharts = {};
+  Object.values(cosmoGraphs).forEach(g => { try { g.destroy(); } catch (e) {} });
+  cosmoGraphs = {};
   const cards = STATE.sessions.map(renderSessionCard).join("")
     || `<div class="empty-note" style="padding:24px 0">No sessions yet. Upload a transcript or load the sample sessions.</div>`;
   document.getElementById("view-sessions").innerHTML = `
     <div class="sessions-header">
-      <div class="eyebrow orange">Sessions</div>
+      <div class="sessions-header-left">
+        <button class="btn-home-arrow" onclick="showView('landing')" aria-label="Back to home" title="Back to home">←</button>
+        <div class="eyebrow orange">Sessions</div>
+      </div>
       <button class="btn btn-pill" onclick="goUpload()">Upload Transcript</button>
     </div>
     <div class="sessions-grid">${cards}</div>`;
   STATE.sessions.forEach(s => { if (isMock(s)) renderSessionCardChart(s); });
+  STATE.sessions.forEach(s => { if (isMock(s)) mountStartupCosmograph(s.startup, sid(s)); });
 }
 
 function renderSessionCard(s) { return isMock(s) ? renderSessionCardMock(s) : renderSessionCardReal(s); }
@@ -1180,12 +1275,13 @@ function renderSessionCardMock(s) {
         <div><div class="score-label-k">Overall Score</div><div class="score-label-v">${esc(SCORE_LABELS[s.overall_score] || "")}</div></div>
       </div>
       <div class="interv-bar">${intervBar}</div>
-      <div class="dh-meta" style="margin-top:18px">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#8a8a8a")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#8a8a8a")}</div>
+      <div class="dh-meta" style="margin-top:18px">${pillBadge(s.sentiment, SENTIMENT_COLORS[s.sentiment] || "#7A7268")}${pillBadge(s.founder_receptiveness, RECEPTIVE_COLORS[s.founder_receptiveness] || "#7A7268")}</div>
       <div class="sv-link" onclick="openDetail('${esc(id)}')">View full analysis →</div>
     </div>
     <div class="sv-right">
       <div class="params">${cards}</div>
       <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Score Progression</div><div class="chart-holder" style="height:220px"><canvas id="svchart-${esc(id)}"></canvas></div></div>
+      ${cosmoCardHtml(s.startup, id)}
     </div>
   </div></div>`;
 }
@@ -1227,17 +1323,533 @@ function renderSessionCardChart(s) {
   const canvas = document.getElementById("svchart-" + id);
   if (!canvas) return;
   const history = SAMPLE_DATA.history[s.startup] || [{ session: 1, score: s.overall_score }];
-  const colorMap = { 0: "#ef4444", 1: "#f97316", 2: "#eab308", 3: "#84cc16", 4: "#22c55e" };
+  const colorMap = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
   sessionViewCharts[id] = new Chart(canvas.getContext("2d"), {
     type: "line",
-    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.10)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.5)", precision: 0 }, grid: { color: "rgba(255,255,255,0.06)" } }, x: { ticks: { color: "rgba(255,251,249,0.5)" }, grid: { color: "rgba(255,255,255,0.03)" } } } }
+    data: { labels: history.map(h => "Session " + h.session), datasets: [{ label: s.startup + " — Overall Score", data: history.map(h => h.score), borderColor: "#FB723D", backgroundColor: "rgba(251,114,61,0.08)", borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointBackgroundColor: history.map(h => colorMap[h.score] || "#FB723D"), pointBorderColor: history.map(h => colorMap[h.score] || "#FB723D"), tension: 0.25, fill: true, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#FFFBF9" } }, tooltip: { callbacks: { label: c => `Score ${c.parsed.y} — ${SCORE_LABELS[c.parsed.y] || ""}` } } }, scales: { y: { min: 0, max: 4, ticks: { stepSize: 1, color: "rgba(255,251,249,0.4)", precision: 0 }, grid: { color: "rgba(255,251,249,0.05)" } }, x: { ticks: { color: "rgba(255,251,249,0.4)" }, grid: { color: "rgba(255,251,249,0.05)" } } } }
   });
+}
+
+/* =====================================================================
+   PER-STARTUP COSMOGRAPH — GPU force-graph of the startup's evolution.
+   Spine = session nodes S1..S6 (size + colour = overall score), chained
+   with delta-weighted edges. Each session branches into the parameter
+   nodes discussed that session (size + colour = that parameter's score).
+   Result: S1 is a small, sparse, red cluster; S6 is a large, bright,
+   dense one — the delta is carried by visual weight, not just a line.
+   ===================================================================== */
+const COSMO_HEX = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
+const COSMO_PARAMS = [["GTM", "GTM"], ["MVP", "MVP"], ["market", "MARKET"], ["unit_econ", "UNIT ECON"], ["team", "TEAM"]];
+let cosmoGraphs = {};
+
+/* deterministic seed positions so the layout reads left→right by session */
+function buildStartupGraph(startup) {
+  const def = (typeof EVOLUTION_DATA !== "undefined") && EVOLUTION_DATA[startup];
+  if (!def) return null;
+  const sessions = def.sessions.slice().sort((a, b) => a.session - b.session);
+  const span = Math.max(1, sessions.length - 1);
+  const nodes = [], links = [];
+  let prevId = null, prevOverall = null;
+  sessions.forEach((s, si) => {
+    const sx = (si / span) * 600 - 300;           // seed x spreads sessions across time
+    const sid = "S" + s.session;
+    nodes.push({
+      id: sid, kind: "session", label: "S" + s.session, session: s.session, date: s.date,
+      score: s.overall, color: COSMO_HEX[s.overall], size: 9 + s.overall * 5,
+      x: sx, y: 0
+    });
+    if (prevId != null) {
+      const delta = s.overall - prevOverall;
+      links.push({
+        source: prevId, target: sid, delta,
+        color: delta > 0 ? "rgba(251,114,61,0.9)" : delta < 0 ? "rgba(196,97,74,0.85)" : "rgba(255,251,249,0.28)",
+        width: delta > 0 ? 4 : delta < 0 ? 3.5 : 1.6
+      });
+    }
+    let pi = 0;
+    COSMO_PARAMS.forEach(([key, label]) => {
+      const sc = s[key];
+      if (sc == null) return;
+      const pid = sid + "_" + key;
+      nodes.push({
+        id: pid, kind: "param", label, session: s.session,
+        score: sc, color: COSMO_HEX[sc], size: 4 + sc * 2.4,
+        x: sx + (pi % 2 ? 40 : -40), y: 70 + pi * 34
+      });
+      links.push({ source: sid, target: pid, delta: null, color: "rgba(255,251,249,0.13)", width: 1 });
+      pi++;
+    });
+    prevId = sid; prevOverall = s.overall;
+  });
+  return { nodes, links, sessions };
+}
+
+function cosmoCardHtml(startup, id) {
+  const data = buildStartupGraph(startup);
+  if (!data) return "";
+  const first = data.sessions[0], last = data.sessions[data.sessions.length - 1];
+  const d = last.overall - first.overall;
+  const sign = d > 0 ? "+" + d : d < 0 ? "−" + Math.abs(d) : "±0";
+  const badgeBg = d > 0 ? "#5A7A52" : d < 0 ? "#C4614A" : "#7A7268";
+  const cid = "cosmo-" + id;
+  return `<div class="glass cosmo-card">
+    <div class="cosmo-head">
+      <div class="cosmo-title">
+        <div class="eyebrow orange">Startup Evolution · Cosmograph</div>
+        <div class="cosmo-sub">S1 → S${last.session} · ${data.nodes.filter(n => n.kind === "session").length} sessions · ${data.nodes.length} nodes</div>
+      </div>
+      <div class="cosmo-delta">Overall S1 → S${last.session}
+        <span class="cosmo-delta-badge" style="background:${badgeBg}">${sign}</span>
+      </div>
+    </div>
+    <div class="cosmo-holder" id="${cid}-holder">
+      <canvas class="cosmo-canvas" id="${cid}"></canvas>
+      <div class="cosmo-tip" id="${cid}-tip"></div>
+      <div class="cosmo-note" id="${cid}-note">Loading graph…</div>
+    </div>
+    <div class="cosmo-legend">
+      <span class="cosmo-legend-item"><span class="cosmo-dot" style="background:#FB723D"></span>Bigger / brighter = higher score</span>
+      <span class="cosmo-legend-item"><span class="cosmo-line" style="border-top-color:#FB723D"></span>Improvement</span>
+      <span class="cosmo-legend-item"><span class="cosmo-line" style="border-top-color:#C4614A"></span>Decline</span>
+      <span class="cosmo-legend-item"><span class="cosmo-dot" style="background:#5A7A52"></span>Session node · small = parameter</span>
+    </div>
+  </div>`;
+}
+
+async function mountStartupCosmograph(startup, id) {
+  const cid = "cosmo-" + id;
+  const canvas = document.getElementById(cid);
+  const note = document.getElementById(cid + "-note");
+  const tip = document.getElementById(cid + "-tip");
+  const holder = document.getElementById(cid + "-holder");
+  if (!canvas) return;
+  const data = buildStartupGraph(startup);
+  if (!data) { if (note) note.textContent = "No evolution data for this startup."; return; }
+
+  let Graph;
+  try { Graph = await window.cosmoReady; }
+  catch (e) { if (note) note.textContent = "Graph engine unavailable (offline)."; return; }
+  if (note) note.style.display = "none";
+
+  const labelFor = n => n.kind === "session"
+    ? `${startup} · Session ${n.session}${n.date ? " · " + n.date : ""}`
+    : `${n.label} · S${n.session}`;
+  const subFor = n => n.kind === "session"
+    ? `Overall ${n.score} — ${SCORE_LABELS[n.score] || ""}`
+    : `Score ${n.score} — ${SCORE_LABELS[n.score] || ""}`;
+  function showTip(n, mx, my) {
+    if (!tip) return;
+    tip.innerHTML = `<div class="cosmo-tip-l1">${esc(labelFor(n))}</div><div class="cosmo-tip-l2">${esc(subFor(n))}</div>`;
+    tip.style.left = mx + "px"; tip.style.top = my + "px";
+    tip.classList.add("show");
+  }
+  function hideTip() { if (tip) tip.classList.remove("show"); }
+
+  const graph = new Graph(canvas, {
+    backgroundColor: "rgba(0,0,0,0)",
+    nodeColor: n => n.color,
+    nodeSize: n => n.size,
+    nodeGreyoutOpacity: 0.2,
+    renderLinks: true,
+    curvedLinks: true,
+    linkColor: l => l.color,
+    linkWidth: l => l.width,
+    linkArrows: false,
+    linkGreyoutOpacity: 0.1,
+    simulation: {
+      repulsion: 0.55,
+      gravity: 0.22,
+      linkDistance: 9,
+      linkSpring: 1.3,
+      friction: 0.88,
+      decay: 9000,
+      onEnd: () => { try { graph.fitView(400); } catch (e) {} }
+    },
+    events: {
+      onClick: (node, i, pos) => {
+        if (!node) { hideTip(); return; }
+        const rect = holder.getBoundingClientRect();
+        showTip(node, (pos && pos[0] != null) ? pos[0] : rect.width / 2, (pos && pos[1] != null) ? pos[1] : rect.height / 2);
+      }
+    }
+  });
+  graph.setData(data.nodes, data.links);
+  setTimeout(() => { try { graph.fitView(600); } catch (e) {} }, 900);
+  if (holder) holder.addEventListener("mouseleave", hideTip);
+  cosmoGraphs[id] = graph;
 }
 
 /* ===== init ===== */
 renderNavAndMenu();
 renderWindow();
+</script>
+
+<!-- =====================================================================
+     STARTUP EVOLUTION GRAPH — canvas timeline
+     Two stacked timeline blocks (one per startup). x = session (time),
+     y = parameter lane. Node size + color = score; curved edges between
+     consecutive sessions show the score delta per parameter.
+     ===================================================================== -->
+<script>
+/* Sessions 2+ are projected/simulated. null = parameter not discussed. */
+const EVOLUTION_DATA = {
+  "NoveltyWealth": {
+    color: "#FB723D",
+    sessions: [
+      { session: 1, date: "Jun 8",  overall: 4, GTM: 4, MVP: 3, market: null, unit_econ: null, team: null },
+      { session: 2, date: "Jun 15", overall: 3, GTM: 3, MVP: 3, market: 2,    unit_econ: null, team: null },
+      { session: 3, date: "Jun 22", overall: 4, GTM: 4, MVP: 4, market: 2,    unit_econ: 2,    team: null },
+      { session: 4, date: "Jun 29", overall: 4, GTM: 4, MVP: 4, market: 3,    unit_econ: 3,    team: 2    },
+      { session: 5, date: "Jul 6",  overall: 4, GTM: 4, MVP: 4, market: 3,    unit_econ: 3,    team: 3    },
+      { session: 6, date: "Jul 13", overall: 4, GTM: 4, MVP: 4, market: 4,    unit_econ: 4,    team: 3    },
+    ]
+  },
+  "Basel / SugarStrings": {
+    color: "#C49A4A",
+    sessions: [
+      { session: 1, date: "Jun 8",  overall: 2, GTM: 2, MVP: null, market: null, unit_econ: null, team: null },
+      { session: 2, date: "Jun 15", overall: 3, GTM: 3, MVP: 2,    market: null, unit_econ: null, team: null },
+      { session: 3, date: "Jun 22", overall: 3, GTM: 3, MVP: 3,    market: 2,    unit_econ: null, team: null },
+      { session: 4, date: "Jun 29", overall: 3, GTM: 3, MVP: 3,    market: 2,    unit_econ: 2,    team: null },
+      { session: 5, date: "Jul 6",  overall: 4, GTM: 4, MVP: 3,    market: 3,    unit_econ: 2,    team: 2    },
+      { session: 6, date: "Jul 13", overall: 4, GTM: 4, MVP: 4,    market: 3,    unit_econ: 3,    team: 3    },
+    ]
+  }
+};
+
+(function () {
+  const canvas = document.getElementById("evo-graph");
+  const holder = canvas && canvas.parentElement;
+  const tooltip = document.getElementById("evo-tooltip");
+  const legendEl = document.getElementById("evo-legend");
+  if (!canvas || !holder) return;
+  const ctx = canvas.getContext("2d");
+
+  /* ---- score → visuals ---- */
+  const FILL = {
+    0: "rgba(122, 59, 46, 0.9)",
+    1: "rgba(156, 106, 58, 0.9)",
+    2: "rgba(143, 122, 74, 0.9)",
+    3: "rgba(90, 122, 82, 0.9)",
+    4: "rgba(251, 114, 61, 0.9)"
+  };
+  const SOLID = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
+  const SCORE_LABEL = (typeof SCORE_LABELS !== "undefined") ? SCORE_LABELS
+    : { 0: "No Guidance", 1: "Flagged Only", 2: "Directional", 3: "Substantive", 4: "Rich Intervention" };
+  function radiusFor(score) { return score === 0 ? 5 : score * 5 + 3; }
+
+  /* ---- parameter rows (per block) ---- */
+  const ROWS = [
+    { key: "overall",   label: "OVERALL",   full: "Overall Score",                          big: true },
+    { key: "GTM",       label: "GTM",       full: "Go-to-Market Strategy" },
+    { key: "MVP",       label: "MVP",       full: "Minimum Viable Product" },
+    { key: "market",    label: "MARKET",    full: "Market Structure & Timing" },
+    { key: "unit_econ", label: "UNIT ECON", full: "Unit Economics & Capital Efficiency" },
+    { key: "team",      label: "TEAM",      full: "Team Structure" }
+  ];
+
+  const LEFT = 140;            // label column width
+  const X0 = 160;             // first node column
+  const startups = Object.keys(EVOLUTION_DATA);
+  const maxSessions = startups.reduce((m, n) => Math.max(m, EVOLUTION_DATA[n].sessions.length), 1);
+
+  /* session number → "S{n}  {date}" header (pick a date from any startup that has it) */
+  const sessionMeta = [];
+  for (let n = 1; n <= maxSessions; n++) {
+    let date = "";
+    for (const name of startups) {
+      const ss = EVOLUTION_DATA[name].sessions.find(s => s.session === n);
+      if (ss) { date = ss.date; break; }
+    }
+    sessionMeta.push({ session: n, date });
+  }
+
+  let W = 0, H = 440, dpr = 1;
+  let nodes = [];   // flat list with absolute positions
+  let edges = [];
+
+  function colX(sessionIdx) {
+    return X0 + (maxSessions <= 1 ? 0 : (sessionIdx / (maxSessions - 1)) * (W - X0 - 40));
+  }
+  function blockTop(i) { return 14 + i * 226; }                  // block 0 → 14, block 1 → 240
+  function rowY(i, rowIdx) { return blockTop(i) + 28 + rowIdx * 27; }
+
+  /* build node + edge geometry for the current width */
+  function buildGeometry() {
+    nodes = [];
+    edges = [];
+    startups.forEach((name, bi) => {
+      const def = EVOLUTION_DATA[name];
+      const sessions = def.sessions.slice().sort((a, b) => a.session - b.session);
+      ROWS.forEach((row, ri) => {
+        let prev = null; // { x, y, score, session }
+        sessions.forEach(s => {
+          const score = s[row.key];
+          const x = colX(s.session - 1);
+          const y = rowY(bi, ri);
+          if (score == null) { return; } // not discussed → no node, breaks the chain
+          const node = {
+            startup: name, startupColor: def.color, session: s.session, date: s.date,
+            rowKey: row.key, rowLabel: row.label, rowFull: row.full, isOverall: !!row.big,
+            score: score, x: x, y: y, baseR: radiusFor(score) * (row.big ? 1.3 : 1),
+            prevScore: prev ? prev.score : null, prevSession: prev ? prev.session : null
+          };
+          if (prev) {
+            const delta = score - prev.score;
+            edges.push({ x1: prev.x, y1: prev.y, x2: x, y2: y, delta: delta,
+              color: delta > 0 ? "rgba(251,114,61,0.6)" : delta < 0 ? "rgba(196,97,74,0.5)" : "rgba(255,251,249,0.15)",
+              width: delta > 0 ? 2.5 : delta < 0 ? 2 : 1 });
+          }
+          nodes.push(node);
+          prev = { x, y, score, session: s.session };
+        });
+      });
+    });
+  }
+
+  function resize() {
+    W = holder.clientWidth || 960;
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildGeometry();
+  }
+
+  /* ---- drawing ---- */
+  function drawGuides() {
+    // vertical dotted session guides through the full height
+    ctx.save();
+    ctx.setLineDash([2, 5]);
+    ctx.strokeStyle = "rgba(255,251,249,0.06)";
+    ctx.lineWidth = 1;
+    sessionMeta.forEach(m => {
+      const x = colX(m.session - 1);
+      ctx.beginPath(); ctx.moveTo(x, 28); ctx.lineTo(x, H - 6); ctx.stroke();
+    });
+    ctx.restore();
+
+    // horizontal dashed lane separators per block/row
+    ctx.save();
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = "rgba(255,251,249,0.04)";
+    ctx.lineWidth = 1;
+    startups.forEach((name, bi) => {
+      ROWS.forEach((row, ri) => {
+        const y = rowY(bi, ri);
+        ctx.beginPath(); ctx.moveTo(LEFT - 4, y); ctx.lineTo(W - 10, y); ctx.stroke();
+      });
+    });
+    ctx.restore();
+  }
+
+  function drawSessionHeaders() {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.font = "600 10px Manrope, sans-serif";
+    ctx.fillStyle = "rgba(255,251,249,0.6)";
+    sessionMeta.forEach(m => {
+      const x = colX(m.session - 1);
+      ctx.fillText(`S${m.session}  ${m.date}`, x, 16);
+    });
+    ctx.restore();
+  }
+
+  function drawLabels() {
+    startups.forEach((name, bi) => {
+      // startup name at block top-left
+      ctx.save();
+      ctx.textAlign = "left";
+      ctx.font = "700 13px Manrope, sans-serif";
+      ctx.fillStyle = EVOLUTION_DATA[name].color;
+      ctx.fillText(name, 8, blockTop(bi) + 14);
+      ctx.restore();
+
+      // parameter lane labels
+      ROWS.forEach((row, ri) => {
+        ctx.save();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        if (row.big) { ctx.font = "700 11px Manrope, sans-serif"; ctx.fillStyle = "rgba(255,251,249,0.85)"; }
+        else { ctx.font = "600 10px Manrope, sans-serif"; ctx.fillStyle = "rgba(255,251,249,0.4)"; }
+        ctx.fillText(row.label, 8, rowY(bi, ri));
+        ctx.restore();
+      });
+    });
+  }
+
+  function drawEdges() {
+    edges.forEach(e => {
+      const mx = (e.x1 + e.x2) / 2, my = (e.y1 + e.y2) / 2;
+      ctx.save();
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = e.width;
+      ctx.beginPath();
+      ctx.moveTo(e.x1, e.y1);
+      ctx.quadraticCurveTo(mx, my - 20, e.x2, e.y2);
+      ctx.stroke();
+      ctx.restore();
+
+      // delta annotation pill at midpoint
+      const txt = e.delta > 0 ? "+" + e.delta : e.delta < 0 ? "−" + Math.abs(e.delta) : "=";
+      ctx.save();
+      ctx.font = "600 10px Manrope, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const py = my - 14, pw = ctx.measureText(txt).width + 10, ph = 14;
+      ctx.fillStyle = "rgba(17,18,19,0.7)";
+      roundRect(mx - pw / 2, py - ph / 2, pw, ph, 5); ctx.fill();
+      ctx.fillStyle = e.color.replace(/0?\.\d+\)$/, "0.95)");
+      ctx.fillText(txt, mx, py + 0.5);
+      ctx.restore();
+    });
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawNodes(t) {
+    nodes.forEach((n, i) => {
+      const pulse = Math.sin(t * 0.002 + i * 0.3) * 1.5;
+      const r = Math.max(2, n.baseR + pulse);
+      // soft glow under score-4 nodes
+      if (n.score === 4) {
+        ctx.save();
+        ctx.fillStyle = "rgba(251,114,61,0.15)";
+        ctx.beginPath(); ctx.arc(n.x, n.y, r * 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.fillStyle = FILL[n.score] || "rgba(255,251,249,0.2)";
+      ctx.strokeStyle = "rgba(255,251,249,0.2)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      n._r = r;
+    });
+  }
+
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    drawGuides();
+    drawSessionHeaders();
+    drawEdges();
+    drawNodes(t);
+    drawLabels();
+  }
+
+  let raf = null;
+  function loop(t) { draw(t || 0); raf = requestAnimationFrame(loop); }
+
+  /* ---- hover / tooltip ---- */
+  function nodeAt(mx, my) {
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      const dx = mx - n.x, dy = my - n.y;
+      if (Math.sqrt(dx * dx + dy * dy) < (n._r || n.baseR) + 8) return n;
+    }
+    return null;
+  }
+  function scoreBadgeHtml(score) {
+    return `<span class="score-badge mini" style="background:${SOLID[score]}">${score}</span>`;
+  }
+  canvas.addEventListener("mousemove", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const n = nodeAt(mx, my);
+    if (!n) { tooltip.classList.remove("show"); canvas.style.cursor = "default"; return; }
+    canvas.style.cursor = "pointer";
+    let l4 = "";
+    if (n.prevScore != null) {
+      const d = n.score - n.prevScore;
+      const sign = d > 0 ? "+" + d : d < 0 ? "−" + Math.abs(d) : "±0";
+      const col = d > 0 ? "#5A7A52" : d < 0 ? "#C4614A" : "rgba(255,251,249,0.5)";
+      l4 = `<div class="evo-tt-l4" style="color:${col}">${sign} from S${n.prevSession}</div>`;
+    }
+    tooltip.innerHTML =
+      `<div class="evo-tt-l1">${n.startup} · Session ${n.session} · ${n.date}</div>` +
+      `<div class="evo-tt-l2">${n.rowFull}</div>` +
+      `<div class="evo-tt-l3">${scoreBadgeHtml(n.score)} ${SCORE_LABEL[n.score] || ""}</div>` + l4;
+    // position above cursor, clamped to canvas bounds
+    let left = mx, top = n.y - (n._r || n.baseR) - 10;
+    left = Math.max(90, Math.min(W - 90, left));
+    top = Math.max(70, top);
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+    tooltip.classList.add("show");
+  });
+  canvas.addEventListener("mouseleave", () => { tooltip.classList.remove("show"); canvas.style.cursor = "default"; });
+
+  /* ---- click → real detail or "not available" toast ---- */
+  function showToast(msg) {
+    let el = document.querySelector(".evo-toast");
+    if (!el) { el = document.createElement("div"); el.className = "evo-toast"; document.body.appendChild(el); }
+    el.textContent = msg;
+    requestAnimationFrame(() => el.classList.add("show"));
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 2000);
+  }
+  function openReal(startupName) {
+    if (typeof SAMPLE_DATA === "undefined" || typeof STATE === "undefined" || typeof openDetail !== "function") return false;
+    const sample = SAMPLE_DATA.sessions.find(s => s.startup === startupName);
+    if (!sample) return false;
+    if (!STATE.sessions.some(x => sid(x) === sid(sample))) STATE.sessions.push(sample);
+    openDetail(sid(sample));
+    return true;
+  }
+  canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const n = nodeAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (!n) return;
+    if (n.session === 1 && openReal(n.startup)) return;     // session 1 → real analysis exists
+    showToast(`Session ${n.session} analysis not yet available`);
+  });
+
+  /* ---- legend (small canvas-drawn icons) ---- */
+  function legendIcon(drawFn) {
+    const c = document.createElement("canvas");
+    c.width = 28; c.height = 28; c.style.width = "14px"; c.style.height = "14px";
+    const x = c.getContext("2d"); x.scale(2, 2);
+    drawFn(x); return c;
+  }
+  function buildLegend() {
+    if (!legendEl) return;
+    const items = [
+      ["Larger circle = higher score", x => { x.fillStyle = "rgba(251,114,61,0.9)"; x.beginPath(); x.arc(7, 7, 6, 0, 7); x.fill(); }],
+      ["Orange line = improvement",    x => { x.strokeStyle = "rgba(251,114,61,0.9)"; x.lineWidth = 2.5; x.beginPath(); x.moveTo(1, 10); x.lineTo(13, 4); x.stroke(); }],
+      ["Terracotta line = decline",    x => { x.strokeStyle = "rgba(196,97,74,0.85)"; x.lineWidth = 2; x.beginPath(); x.moveTo(1, 4); x.lineTo(13, 10); x.stroke(); }],
+      ["Grey dot = no data",           x => { x.fillStyle = "rgba(255,251,249,0.25)"; x.beginPath(); x.arc(7, 7, 3, 0, 7); x.fill(); }]
+    ];
+    legendEl.innerHTML = "";
+    items.forEach(([text, fn]) => {
+      const wrap = document.createElement("div");
+      wrap.className = "evo-legend-item";
+      wrap.appendChild(legendIcon(fn));
+      const span = document.createElement("span");
+      span.textContent = text;
+      wrap.appendChild(span);
+      legendEl.appendChild(wrap);
+    });
+  }
+
+  /* ---- init ---- */
+  resize();
+  buildLegend();
+  if (raf) cancelAnimationFrame(raf);
+  loop(0);
+  window.addEventListener("resize", () => { resize(); });
+  console.log("[evo-graph] rendered", nodes.length, "nodes /", edges.length, "edges across", startups.length, "startups");
+})();
 </script>
 </body>
 </html>
