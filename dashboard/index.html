@@ -8,14 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<!-- Cosmograph (GPU force-graph) — loaded as an ES module and exposed via window.cosmoReady -->
-<script type="module">
-  let _ok, _fail;
-  window.cosmoReady = new Promise((res, rej) => { _ok = res; _fail = rej; });
-  import("https://esm.sh/@cosmograph/cosmos@1.6.1")
-    .then(mod => { window.Cosmos = mod; _ok(mod.Graph); console.log("[cosmos] Graph loaded"); })
-    .catch(err => { console.error("[cosmos] failed to load", err); _fail(err); });
-</script>
 <style>
   :root {
     --orange: #FB723D;
@@ -445,25 +437,28 @@
   .btn-home-arrow { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--cream); background: rgba(255,251,249,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); transition: background 0.15s, transform 0.15s; }
   .btn-home-arrow:hover { background: rgba(251,114,61,0.18); transform: translateX(-2px); }
 
-  /* ---------- per-startup Cosmograph evolution graph ---------- */
-  .cosmo-card { margin-top: 18px; padding: 16px 18px 14px; border-radius: 18px; }
-  .cosmo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  .cosmo-title { display: flex; flex-direction: column; gap: 2px; }
-  .cosmo-title .eyebrow { margin: 0; }
-  .cosmo-sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
-  .cosmo-delta { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
-  .cosmo-delta-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 100px; font-weight: 700; font-size: 13px; color: #FFFBF9; }
-  .cosmo-holder { position: relative; width: 100%; height: 320px; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, rgba(251,114,61,0.05), rgba(20,20,22,0.25) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
-  .cosmo-canvas { display: block; width: 100%; height: 100%; }
-  .cosmo-note { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 24px; font-size: 12px; color: var(--text-muted); pointer-events: none; }
-  .cosmo-tip { position: absolute; z-index: 30; pointer-events: none; opacity: 0; transition: opacity 0.12s ease; transform: translate(-50%, -115%); border-radius: 8px; padding: 8px 12px; min-width: 120px; background: rgba(20,22,24,0.9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 10px 26px rgba(0,0,0,0.4); }
-  .cosmo-tip.show { opacity: 1; }
-  .cosmo-tip-l1 { font-weight: 700; font-size: 12px; color: var(--cream); }
-  .cosmo-tip-l2 { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-  .cosmo-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
-  .cosmo-legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: rgba(255,251,249,0.45); }
-  .cosmo-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-  .cosmo-line { width: 18px; height: 0; flex: none; border-top-width: 3px; border-top-style: solid; }
+  /* ---------- per-startup evolution graph (radial bars / stream) ---------- */
+  .evo2-card { margin-top: 18px; padding: 18px 20px 16px; border-radius: 18px; }
+  .evo2-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .evo2-title { display: flex; flex-direction: column; gap: 3px; }
+  .evo2-title .eyebrow { margin: 0; }
+  .evo2-sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .evo2-head-right { display: flex; align-items: center; gap: 14px; }
+  .evo2-delta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .evo2-delta-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 13px; border-radius: 100px; font-weight: 800; font-size: 16px; color: #FFFBF9; letter-spacing: 0.01em; }
+  .evo2-delta-cap { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .evo2-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 100px; border: none; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 12px; color: var(--cream); background: rgba(255,251,249,0.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); transition: background 0.15s, transform 0.12s; white-space: nowrap; }
+  .evo2-toggle:hover { background: rgba(251,114,61,0.18); }
+  .evo2-toggle:active { transform: scale(0.97); }
+  .evo2-toggle svg { width: 14px; height: 14px; flex: none; }
+  .evo2-holder { position: relative; width: 100%; height: 340px; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, rgba(251,114,61,0.05), rgba(20,20,22,0.25) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+  .evo2-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .evo2-canvas.is-hidden { display: none; }
+  .evo2-caption { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-top: 12px; line-height: 1.55; }
+  .evo2-caption b { color: var(--cream); font-weight: 700; }
+  .evo2-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 11px; }
+  .evo2-legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: rgba(255,251,249,0.5); }
+  .evo2-swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
 </style>
 </head>
 <body>
@@ -1238,8 +1233,8 @@ function showSessions() {
 function renderSessions() {
   Object.values(sessionViewCharts).forEach(c => { try { c.destroy(); } catch (e) {} });
   sessionViewCharts = {};
-  Object.values(cosmoGraphs).forEach(g => { try { g.destroy(); } catch (e) {} });
-  cosmoGraphs = {};
+  Object.values(evoGraphs).forEach(g => { try { g.destroy(); } catch (e) {} });
+  evoGraphs = {};
   const cards = STATE.sessions.map(renderSessionCard).join("")
     || `<div class="empty-note" style="padding:24px 0">No sessions yet. Upload a transcript or load the sample sessions.</div>`;
   document.getElementById("view-sessions").innerHTML = `
@@ -1252,7 +1247,7 @@ function renderSessions() {
     </div>
     <div class="sessions-grid">${cards}</div>`;
   STATE.sessions.forEach(s => { if (isMock(s)) renderSessionCardChart(s); });
-  STATE.sessions.forEach(s => { if (isMock(s)) mountStartupCosmograph(s.startup, sid(s)); });
+  STATE.sessions.forEach(s => mountEvoGraph(evoStartupName(s), sid(s)));
 }
 
 function renderSessionCard(s) { return isMock(s) ? renderSessionCardMock(s) : renderSessionCardReal(s); }
@@ -1281,7 +1276,7 @@ function renderSessionCardMock(s) {
     <div class="sv-right">
       <div class="params">${cards}</div>
       <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Score Progression</div><div class="chart-holder" style="height:220px"><canvas id="svchart-${esc(id)}"></canvas></div></div>
-      ${cosmoCardHtml(s.startup, id)}
+      ${evoCardHtml(s.startup, id)}
     </div>
   </div></div>`;
 }
@@ -1314,6 +1309,7 @@ function renderSessionCardReal(s) {
     <div class="sv-right">
       <div class="params">${cards || '<div class="empty-note">No active parameters were extracted.</div>'}</div>
       <div class="glass chart-card" style="margin-top:18px"><div class="eyebrow">Next Steps for Founder</div>${nextHtml}</div>
+      ${evoCardHtml(startup, id)}
     </div>
   </div></div>`;
 }
@@ -1332,152 +1328,320 @@ function renderSessionCardChart(s) {
 }
 
 /* =====================================================================
-   PER-STARTUP COSMOGRAPH — GPU force-graph of the startup's evolution.
-   Spine = session nodes S1..S6 (size + colour = overall score), chained
-   with delta-weighted edges. Each session branches into the parameter
-   nodes discussed that session (size + colour = that parameter's score).
-   Result: S1 is a small, sparse, red cluster; S6 is a large, bright,
-   dense one — the delta is carried by visual weight, not just a line.
-   ===================================================================== */
-const COSMO_HEX = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
-const COSMO_PARAMS = [["GTM", "GTM"], ["MVP", "MVP"], ["market", "MARKET"], ["unit_econ", "UNIT ECON"], ["team", "TEAM"]];
-let cosmoGraphs = {};
+   PER-STARTUP EVOLUTION GRAPH — radial bar (default) + stream toggle.
+   Both views are drawn on a plain 2D canvas (no external lib, offline-
+   safe) in the site palette. The radial "rose" shows each session as a
+   petal whose length = that session's overall mentor-guidance score
+   (0–4): the petals visibly grow as the startup improves, and the centre
+   carries the S1→last delta. The stream view stacks the per-parameter
+   scores across sessions so you can see WHICH dimensions drove the growth.
 
-/* deterministic seed positions so the layout reads left→right by session */
-function buildStartupGraph(startup) {
+   The data is derived live from startupEvolution(): sample startups use
+   the rich hardcoded EVOLUTION_DATA, while any freshly uploaded startup
+   is reconstructed from its own sessions in STATE — so a brand-new
+   startup automatically gets its own graph and delta.
+   ===================================================================== */
+const SCORE_HEX = { 0: "#7A3B2E", 1: "#9C6A3A", 2: "#8F7A4A", 3: "#5A7A52", 4: "#FB723D" };
+const EVO_PARAMS = [
+  { key: "GTM",       label: "GTM",       full: "Go-to-Market",   long: "GTM",                                   color: "#FB723D" },
+  { key: "MVP",       label: "MVP",       full: "Product / MVP",  long: "MVP",                                   color: "#C49A4A" },
+  { key: "market",    label: "MARKET",    full: "Market & Timing",long: "market_structure_and_timing",           color: "#5A7A52" },
+  { key: "unit_econ", label: "UNIT ECON", full: "Unit Economics", long: "unit_economics_and_capital_efficiency", color: "#9C6A3A" },
+  { key: "team",      label: "TEAM",      full: "Team",           long: "team_structure",                        color: "#7FA0C4" },
+];
+let evoGraphs = {};
+
+function evoStartupName(s) { return isMock(s) ? s.startup : realStartup(s); }
+function evoTime(s) {
+  const raw = isMock(s) ? (s.date + " 2026") : ((s.pipeline_metadata || {}).timestamp || "");
+  const t = Date.parse(raw); return isNaN(t) ? 0 : t;
+}
+function evoDateLabel(s) { return isMock(s) ? s.date : realDate(s); }
+
+/* Unified per-startup evolution series: [{session, date, overall, scores}] on a 0–4 scale. */
+function startupEvolution(startup) {
   const def = (typeof EVOLUTION_DATA !== "undefined") && EVOLUTION_DATA[startup];
-  if (!def) return null;
-  const sessions = def.sessions.slice().sort((a, b) => a.session - b.session);
-  const span = Math.max(1, sessions.length - 1);
-  const nodes = [], links = [];
-  let prevId = null, prevOverall = null;
-  sessions.forEach((s, si) => {
-    const sx = (si / span) * 600 - 300;           // seed x spreads sessions across time
-    const sid = "S" + s.session;
-    nodes.push({
-      id: sid, kind: "session", label: "S" + s.session, session: s.session, date: s.date,
-      score: s.overall, color: COSMO_HEX[s.overall], size: 9 + s.overall * 5,
-      x: sx, y: 0
-    });
-    if (prevId != null) {
-      const delta = s.overall - prevOverall;
-      links.push({
-        source: prevId, target: sid, delta,
-        color: delta > 0 ? "rgba(251,114,61,0.9)" : delta < 0 ? "rgba(196,97,74,0.85)" : "rgba(255,251,249,0.28)",
-        width: delta > 0 ? 4 : delta < 0 ? 3.5 : 1.6
-      });
+  if (def) {
+    return def.sessions.slice().sort((a, b) => a.session - b.session).map(s => ({
+      session: s.session, date: s.date, overall: s.overall,
+      scores: { GTM: s.GTM, MVP: s.MVP, market: s.market, unit_econ: s.unit_econ, team: s.team }
+    }));
+  }
+  /* derive from this startup's own (uploaded / sample) sessions in STATE */
+  const mine = STATE.sessions.filter(s => evoStartupName(s) === startup).slice().sort((a, b) => evoTime(a) - evoTime(b));
+  if (!mine.length) return null;
+  return mine.map((s, i) => {
+    const scores = { GTM: null, MVP: null, market: null, unit_econ: null, team: null };
+    let overall;
+    if (isMock(s)) {
+      overall = s.overall_score;
+      const ps = (s.layer5 && s.layer5.parameter_scores) || {};
+      EVO_PARAMS.forEach(p => { if (p.long in ps) scores[p.key] = ps[p.long]; });
+    } else {
+      const m = realEval(s).overall_progress_metric;
+      overall = (m == null) ? null : Math.max(0, Math.min(4, Math.round(m / 2.5)));
+      const active = realActiveParams(s);
+      EVO_PARAMS.forEach(p => { if (active.includes(p.long)) scores[p.key] = (overall == null ? 2 : overall); });
     }
-    let pi = 0;
-    COSMO_PARAMS.forEach(([key, label]) => {
-      const sc = s[key];
-      if (sc == null) return;
-      const pid = sid + "_" + key;
-      nodes.push({
-        id: pid, kind: "param", label, session: s.session,
-        score: sc, color: COSMO_HEX[sc], size: 4 + sc * 2.4,
-        x: sx + (pi % 2 ? 40 : -40), y: 70 + pi * 34
-      });
-      links.push({ source: sid, target: pid, delta: null, color: "rgba(255,251,249,0.13)", width: 1 });
-      pi++;
-    });
-    prevId = sid; prevOverall = s.overall;
+    return { session: i + 1, date: evoDateLabel(s), overall, scores };
   });
-  return { nodes, links, sessions };
 }
 
-function cosmoCardHtml(startup, id) {
-  const data = buildStartupGraph(startup);
-  if (!data) return "";
-  const first = data.sessions[0], last = data.sessions[data.sessions.length - 1];
-  const d = last.overall - first.overall;
-  const sign = d > 0 ? "+" + d : d < 0 ? "−" + Math.abs(d) : "±0";
+const EVO_ICO_STREAM = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8c4-4 6 4 10 0s4-4 8 0"/><path d="M3 14c4-4 6 4 10 0s4-4 8 0"/></svg>`;
+const EVO_ICO_RADIAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg>`;
+
+function evoCardHtml(startup, id) {
+  const ev = startupEvolution(startup);
+  if (!ev || !ev.length) return "";
+  const valid = ev.filter(s => s.overall != null);
+  const first = valid[0], last = valid[valid.length - 1];
+  const n = ev.length;
+  const d = (first && last) ? last.overall - first.overall : 0;
+  const sign = d > 0 ? "▲ +" + d : d < 0 ? "▼ −" + Math.abs(d) : "± 0";
   const badgeBg = d > 0 ? "#5A7A52" : d < 0 ? "#C4614A" : "#7A7268";
-  const cid = "cosmo-" + id;
-  return `<div class="glass cosmo-card">
-    <div class="cosmo-head">
-      <div class="cosmo-title">
-        <div class="eyebrow orange">Startup Evolution · Cosmograph</div>
-        <div class="cosmo-sub">S1 → S${last.session} · ${data.nodes.filter(n => n.kind === "session").length} sessions · ${data.nodes.length} nodes</div>
+  const pct = d === 0 ? "±0%" : (d > 0 ? "+" : "−") + Math.round(Math.abs(d) / 4 * 100) + "%";
+  const cid = "evo-" + id;
+
+  let caption;
+  if (valid.length <= 1) {
+    caption = `<b>Baseline set.</b> Overall guidance score <b>${first ? first.overall + "/4" : "—"}</b> from the first session — the delta and growth trend populate automatically once a second session for ${esc(startup)} is analysed.`;
+  } else {
+    const verb = d > 0 ? "climbed" : d < 0 ? "slipped" : "held steady";
+    const amt = d === 0 ? `at <b>${last.overall}/4</b>` : `<b>${first.overall}/4 → ${last.overall}/4</b> (${d > 0 ? "+" : "−"}${Math.abs(d)} of 4)`;
+    caption = `Across <b>${n} sessions</b> the overall mentor-guidance score ${verb} ${amt} — the measurable value these sessions added. Toggle to the stream view to see which parameters drove it.`;
+  }
+
+  const legend = EVO_PARAMS.map(p => `<span class="evo2-legend-item"><span class="evo2-swatch" style="background:${p.color}"></span>${esc(p.full)}</span>`).join("");
+
+  return `<div class="glass evo2-card">
+    <div class="evo2-head">
+      <div class="evo2-title">
+        <div class="eyebrow orange">Startup Evolution · Delta over Sessions</div>
+        <div class="evo2-sub">S1 → S${n} · ${n} session${n === 1 ? "" : "s"} · overall mentor-guidance score (0–4)</div>
       </div>
-      <div class="cosmo-delta">Overall S1 → S${last.session}
-        <span class="cosmo-delta-badge" style="background:${badgeBg}">${sign}</span>
+      <div class="evo2-head-right">
+        <div class="evo2-delta">
+          <span class="evo2-delta-badge" style="background:${badgeBg}">${sign}</span>
+          <span class="evo2-delta-cap">Overall · ${pct} of scale</span>
+        </div>
+        <button class="evo2-toggle" id="${cid}-toggle" type="button" onclick="toggleEvoView('${esc(id)}')">
+          <span id="${cid}-toggle-ico">${EVO_ICO_STREAM}</span><span id="${cid}-toggle-txt">Stream view</span>
+        </button>
       </div>
     </div>
-    <div class="cosmo-holder" id="${cid}-holder">
-      <canvas class="cosmo-canvas" id="${cid}"></canvas>
-      <div class="cosmo-tip" id="${cid}-tip"></div>
-      <div class="cosmo-note" id="${cid}-note">Loading graph…</div>
+    <div class="evo2-holder" id="${cid}-holder">
+      <canvas class="evo2-canvas" id="${cid}-radial"></canvas>
+      <canvas class="evo2-canvas is-hidden" id="${cid}-stream"></canvas>
     </div>
-    <div class="cosmo-legend">
-      <span class="cosmo-legend-item"><span class="cosmo-dot" style="background:#FB723D"></span>Bigger / brighter = higher score</span>
-      <span class="cosmo-legend-item"><span class="cosmo-line" style="border-top-color:#FB723D"></span>Improvement</span>
-      <span class="cosmo-legend-item"><span class="cosmo-line" style="border-top-color:#C4614A"></span>Decline</span>
-      <span class="cosmo-legend-item"><span class="cosmo-dot" style="background:#5A7A52"></span>Session node · small = parameter</span>
-    </div>
+    <div class="evo2-legend" id="${cid}-legend">${legend}</div>
+    <div class="evo2-caption">${caption}</div>
   </div>`;
 }
 
-async function mountStartupCosmograph(startup, id) {
-  const cid = "cosmo-" + id;
-  const canvas = document.getElementById(cid);
-  const note = document.getElementById(cid + "-note");
-  const tip = document.getElementById(cid + "-tip");
-  const holder = document.getElementById(cid + "-holder");
-  if (!canvas) return;
-  const data = buildStartupGraph(startup);
-  if (!data) { if (note) note.textContent = "No evolution data for this startup."; return; }
+function evoSizeCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(1, rect.width), h = Math.max(1, rect.height);
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
 
-  let Graph;
-  try { Graph = await window.cosmoReady; }
-  catch (e) { if (note) note.textContent = "Graph engine unavailable (offline)."; return; }
-  if (note) note.style.display = "none";
+/* ---- RADIAL BAR ("rose"): each session = a petal, length = overall score ---- */
+function evoDrawRadial(canvas, data) {
+  const sz = evoSizeCanvas(canvas); if (!sz) return;
+  const { ctx, w, h } = sz;
+  const cx = w / 2, cy = h / 2 + 4;
+  const maxR = Math.max(40, Math.min(w, h) / 2 - 50);
+  const innerR = Math.max(30, maxR * 0.36);
+  const n = data.length;
+  const TOP = -Math.PI / 2;
 
-  const labelFor = n => n.kind === "session"
-    ? `${startup} · Session ${n.session}${n.date ? " · " + n.date : ""}`
-    : `${n.label} · S${n.session}`;
-  const subFor = n => n.kind === "session"
-    ? `Overall ${n.score} — ${SCORE_LABELS[n.score] || ""}`
-    : `Score ${n.score} — ${SCORE_LABELS[n.score] || ""}`;
-  function showTip(n, mx, my) {
-    if (!tip) return;
-    tip.innerHTML = `<div class="cosmo-tip-l1">${esc(labelFor(n))}</div><div class="cosmo-tip-l2">${esc(subFor(n))}</div>`;
-    tip.style.left = mx + "px"; tip.style.top = my + "px";
-    tip.classList.add("show");
+  /* faint concentric guide rings for score levels 1..4 */
+  ctx.lineWidth = 1;
+  for (let lvl = 1; lvl <= 4; lvl++) {
+    const r = innerR + (lvl / 4) * (maxR - innerR);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = lvl === 4 ? "rgba(255,251,249,0.16)" : "rgba(255,251,249,0.06)";
+    ctx.stroke();
   }
-  function hideTip() { if (tip) tip.classList.remove("show"); }
 
-  const graph = new Graph(canvas, {
-    backgroundColor: "rgba(0,0,0,0)",
-    nodeColor: n => n.color,
-    nodeSize: n => n.size,
-    nodeGreyoutOpacity: 0.2,
-    renderLinks: true,
-    curvedLinks: true,
-    linkColor: l => l.color,
-    linkWidth: l => l.width,
-    linkArrows: false,
-    linkGreyoutOpacity: 0.1,
-    simulation: {
-      repulsion: 0.55,
-      gravity: 0.22,
-      linkDistance: 9,
-      linkSpring: 1.3,
-      friction: 0.88,
-      decay: 9000,
-      onEnd: () => { try { graph.fitView(400); } catch (e) {} }
-    },
-    events: {
-      onClick: (node, i, pos) => {
-        if (!node) { hideTip(); return; }
-        const rect = holder.getBoundingClientRect();
-        showTip(node, (pos && pos[0] != null) ? pos[0] : rect.width / 2, (pos && pos[1] != null) ? pos[1] : rect.height / 2);
-      }
+  const slice = (Math.PI * 2) / n;
+  const gap = n > 1 ? Math.min(0.10, slice * 0.18) : 0;
+  data.forEach((s, i) => {
+    const a0 = TOP + i * slice + gap / 2;
+    const a1 = TOP + (i + 1) * slice - gap / 2;
+    const am = (a0 + a1) / 2;
+    const sc = s.overall == null ? 0 : s.overall;
+    const r = innerR + (sc / 4) * (maxR - innerR);
+    const col = SCORE_HEX[sc] || "#7A3B2E";
+
+    /* donut wedge */
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, a0, a1);
+    ctx.arc(cx, cy, innerR, a1, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = s.overall == null ? "rgba(255,251,249,0.08)" : col + "E6";
+    ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(17,18,19,0.55)"; ctx.stroke();
+
+    /* score number near the petal tip */
+    if (s.overall != null) {
+      const tr = r - 13;
+      ctx.fillStyle = "#FFFBF9"; ctx.font = "700 13px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(s.overall), cx + Math.cos(am) * tr, cy + Math.sin(am) * tr);
+    }
+    /* session label outside the rings */
+    const lr = maxR + 18;
+    ctx.fillStyle = "rgba(255,251,249,0.55)"; ctx.font = "600 11px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("S" + s.session, cx + Math.cos(am) * lr, cy + Math.sin(am) * lr);
+  });
+
+  /* centre hub: delta + current score */
+  const valid = data.filter(s => s.overall != null);
+  const first = valid[0], lastS = valid[valid.length - 1];
+  const d = (first && lastS) ? lastS.overall - first.overall : 0;
+  ctx.beginPath(); ctx.arc(cx, cy, innerR - 5, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(17,18,19,0.55)"; ctx.fill();
+  const deltaTxt = valid.length <= 1 ? "S1" : (d > 0 ? "+" + d : d < 0 ? "−" + Math.abs(d) : "±0");
+  ctx.fillStyle = d > 0 ? "#FB723D" : d < 0 ? "#C4614A" : "#FFFBF9";
+  ctx.font = "800 26px Inter, system-ui, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(deltaTxt, cx, cy + 2);
+  ctx.fillStyle = "rgba(255,251,249,0.5)"; ctx.font = "600 9px Inter, system-ui, sans-serif";
+  ctx.fillText(valid.length <= 1 ? "BASELINE" : "S1 → S" + lastS.session, cx, cy + 17);
+  if (lastS) {
+    ctx.fillStyle = "rgba(255,251,249,0.45)"; ctx.font = "600 10px Inter, system-ui, sans-serif";
+    ctx.fillText("now " + lastS.overall + " / 4", cx, cy - 16);
+  }
+}
+
+/* ---- STREAM (themeriver): per-parameter scores stacked across sessions ---- */
+function evoDrawStream(canvas, data) {
+  const sz = evoSizeCanvas(canvas); if (!sz) return;
+  const { ctx, w, h } = sz;
+  const padL = 18, padR = 104, padT = 26, padB = 30;
+  const plotW = Math.max(10, w - padL - padR), plotH = Math.max(10, h - padT - padB);
+  const n = data.length;
+  const midY = padT + plotH / 2;
+  const xs = n === 1 ? [padL + plotW / 2] : data.map((_, i) => padL + (i / (n - 1)) * plotW);
+  const totals = data.map(s => EVO_PARAMS.reduce((t, p) => t + (s.scores[p.key] || 0), 0));
+  const maxTotal = Math.max(1, ...totals);
+  const unit = (plotH * 0.84) / maxTotal;
+
+  /* vertical session gridlines + S-labels */
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  data.forEach((s, i) => {
+    ctx.beginPath(); ctx.moveTo(xs[i], padT - 6); ctx.lineTo(xs[i], h - padB + 6);
+    ctx.strokeStyle = "rgba(255,251,249,0.05)"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = "rgba(255,251,249,0.5)"; ctx.font = "600 11px Inter, system-ui, sans-serif";
+    ctx.fillText("S" + s.session, xs[i], h - padB + 16);
+  });
+
+  /* per-parameter band offsets, centred stack */
+  const bands = EVO_PARAMS.map(() => []);
+  data.forEach((s, i) => {
+    let cursor = midY + (totals[i] * unit) / 2;   // bottom edge (y grows down)
+    EVO_PARAMS.forEach((p, pi) => {
+      const v = s.scores[p.key] || 0;
+      const th = v * unit;
+      bands[pi].push({ x: xs[i], yB: cursor, yT: cursor - th, v });
+      cursor -= th;
+    });
+  });
+
+  const smoothTop = pts => {
+    ctx.moveTo(pts[0].x, pts[0].yT);
+    for (let i = 1; i < pts.length; i++) {
+      const mx = (pts[i - 1].x + pts[i].x) / 2;
+      ctx.bezierCurveTo(mx, pts[i - 1].yT, mx, pts[i].yT, pts[i].x, pts[i].yT);
+    }
+  };
+  const smoothBotRev = pts => {
+    for (let i = pts.length - 1; i > 0; i--) {
+      const mx = (pts[i].x + pts[i - 1].x) / 2;
+      ctx.bezierCurveTo(mx, pts[i].yB, mx, pts[i - 1].yB, pts[i - 1].x, pts[i - 1].yB);
+    }
+  };
+
+  EVO_PARAMS.forEach((p, pi) => {
+    const pts = bands[pi];
+    ctx.beginPath();
+    if (n === 1) {
+      const b = pts[0], hw = Math.min(46, plotW / 2);
+      ctx.rect(b.x - hw, b.yT, hw * 2, Math.max(0, b.yB - b.yT));
+    } else {
+      smoothTop(pts);
+      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].yB);
+      smoothBotRev(pts);
+      ctx.closePath();
+    }
+    ctx.fillStyle = p.color + "D9";
+    ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(17,18,19,0.45)"; ctx.stroke();
+
+    /* right-edge label: parameter + latest score */
+    const lastPt = pts[pts.length - 1];
+    const ly = (lastPt.yT + lastPt.yB) / 2;
+    if (lastPt.v > 0) {
+      ctx.fillStyle = p.color; ctx.font = "700 11px Inter, system-ui, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(p.label, w - padR + 12, ly - 6);
+      ctx.fillStyle = "rgba(255,251,249,0.55)"; ctx.font = "600 10px Inter, system-ui, sans-serif";
+      ctx.fillText(lastPt.v + " / 4", w - padR + 12, ly + 7);
     }
   });
-  graph.setData(data.nodes, data.links);
-  setTimeout(() => { try { graph.fitView(600); } catch (e) {} }, 900);
-  if (holder) holder.addEventListener("mouseleave", hideTip);
-  cosmoGraphs[id] = graph;
+
+  /* title hint */
+  ctx.fillStyle = "rgba(255,251,249,0.4)"; ctx.font = "600 10px Inter, system-ui, sans-serif";
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText("Stream thickness = parameter score · widening = growth", padL, padT - 12);
+}
+
+function mountEvoGraph(startup, id) {
+  const cid = "evo-" + id;
+  const radial = document.getElementById(cid + "-radial");
+  const stream = document.getElementById(cid + "-stream");
+  const holder = document.getElementById(cid + "-holder");
+  if (!radial || !stream || !holder) return;
+  const data = startupEvolution(startup);
+  if (!data || !data.length) return;
+
+  const state = { view: "radial" };
+  const redraw = () => {
+    if (state.view === "radial") evoDrawRadial(radial, data);
+    else evoDrawStream(stream, data);
+  };
+  /* ResizeObserver redraws once the card has real layout (handles hidden→shown). */
+  let ro = null;
+  try { ro = new ResizeObserver(() => redraw()); ro.observe(holder); }
+  catch (e) { requestAnimationFrame(redraw); setTimeout(redraw, 300); }
+
+  evoGraphs[id] = { state, redraw, destroy: () => { if (ro) ro.disconnect(); } };
+}
+
+function toggleEvoView(id) {
+  const g = evoGraphs[id]; if (!g) return;
+  const cid = "evo-" + id;
+  const radial = document.getElementById(cid + "-radial");
+  const stream = document.getElementById(cid + "-stream");
+  const ico = document.getElementById(cid + "-toggle-ico");
+  const txt = document.getElementById(cid + "-toggle-txt");
+  if (!radial || !stream) return;
+  if (g.state.view === "radial") {
+    g.state.view = "stream";
+    radial.classList.add("is-hidden"); stream.classList.remove("is-hidden");
+    if (ico) ico.innerHTML = EVO_ICO_RADIAL; if (txt) txt.textContent = "Radial view";
+  } else {
+    g.state.view = "radial";
+    stream.classList.add("is-hidden"); radial.classList.remove("is-hidden");
+    if (ico) ico.innerHTML = EVO_ICO_STREAM; if (txt) txt.textContent = "Stream view";
+  }
+  g.redraw();
 }
 
 /* ===== init ===== */
