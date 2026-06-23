@@ -28,6 +28,7 @@ if sys.platform.startswith('win'):
 load_dotenv()
 
 # Import pipeline components
+from layer1_5_translation import translate_transcript, print_translation_result
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
 from layer4_intervention import analyze_interventions, print_intervention_analysis
@@ -91,6 +92,19 @@ async def run_custom_pipeline():
         transcript=raw_transcript,
         speakers=transcript_data["speakers"]
     )
+
+    # 2.5 LAYER 1.5 — Hindi/Hinglish → English Translation
+    print(f"\n{'─'*60}")
+    print("  LAYER 1.5 — Hindi/Hinglish → English Translation")
+    print(f"{'─'*60}")
+    try:
+        transcript_data = translate_transcript(transcript_data)
+        print_translation_result(transcript_data)
+        # Update raw_transcript with translated version for downstream use
+        raw_transcript = transcript_data["transcript"]
+    except Exception as e:
+        print(f"  ❌  Layer 1.5 translation failed: {e}")
+        print("  ⚠️  Continuing pipeline with original transcript...")
 
     # 3. LAYER 2 — Summarizer Agent
     print(f"\n{'─'*60}")

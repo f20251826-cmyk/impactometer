@@ -55,6 +55,7 @@ from db_helpers import (
 # Import pipeline layers
 # ---------------------------------------------------------------------------
 from layer1_transcription import transcribe_audio_file, transcribe_live
+from layer1_5_translation import translate_transcript, print_translation_result
 from layer2_breakdown import breakdown_transcript, print_moments
 from layer3_classification import classify_call, print_classification
 from layer4_intervention import analyze_interventions, print_intervention_analysis
@@ -124,6 +125,7 @@ async def run_pipeline(
     user_context: dict = None,
     startup_id: str = "unknown",
     session_number: int = 1,
+    translate: bool = False,
 ) -> dict:
     """
     Run the full AI Call Analysis Pipeline end to end, syncing with Supabase and Google Docs.
@@ -197,6 +199,20 @@ async def run_pipeline(
         "duration": tot_duration,
         "confidence_scores": confidences
     }
+
+    # -----------------------------------------------------------------------
+    # LAYER 1.5 — Hindi/Hinglish → English Translation (optional)
+    # -----------------------------------------------------------------------
+    if translate:
+        print(f"\n{'─'*60}")
+        print("  LAYER 1.5 — Hindi/Hinglish → English Translation")
+        print(f"{'─'*60}")
+        try:
+            transcript_data = translate_transcript(transcript_data)
+            print_translation_result(transcript_data)
+        except Exception as e:
+            print(f"  ❌  Layer 1.5 translation failed: {e}")
+            print("  ⚠️  Continuing pipeline with original transcript...")
 
     # 1B. Storage: Save raw transcript to Google Doc & push to Supabase
     print("\n  💾  Syncing Layer 1 to Google Docs & Supabase...")
@@ -546,6 +562,13 @@ Examples:
         help="Additional custom context or focus notes for the summary",
     )
 
+    # Translation flag
+    parser.add_argument(
+        "--translate",
+        action="store_true",
+        help="Translate Hindi/Hinglish transcript to English before analysis (Layer 1.5)",
+    )
+
     # Score tracker identifiers
     parser.add_argument(
         "--startup",
@@ -600,6 +623,7 @@ if __name__ == "__main__":
                 user_context=user_context,
                 startup_id=args.startup,
                 session_number=args.session,
+                translate=args.translate,
             )
         )
     except KeyboardInterrupt:

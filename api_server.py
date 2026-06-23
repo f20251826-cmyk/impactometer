@@ -48,6 +48,7 @@ from flask_cors import CORS
 # ---------------------------------------------------------------------------
 # Import the EXISTING pipeline layers — analysis logic is reused verbatim.
 # ---------------------------------------------------------------------------
+from layer1_5_translation import translate_transcript
 from layer2_breakdown import breakdown_transcript
 from layer3_classification import classify_call
 
@@ -107,6 +108,12 @@ def run_pipeline_endpoint():
             "transcript": raw_transcript,
             "speakers": [],
         }
+
+        # --- LAYER 1.5 — Translation (if requested) ----------------------
+        should_translate = (request.form.get("translate", "").lower() in ("true", "1", "yes"))
+        if should_translate:
+            transcript_data = translate_transcript(transcript_data)
+            raw_transcript = transcript_data["transcript"]
 
         # --- LAYER 2 — Talking Points Summarizer (existing function) ------
         user_context = {
